@@ -26,6 +26,12 @@
                 <div class="col-md-4 mb-2 mb-md-0">
                     <select class="form-select" id="roleFilter">
                         <option value="all">全部职业</option>
+                        <option value="坦克">坦克</option>
+                        <option value="战士">战士</option>
+                        <option value="刺客">刺客</option>
+                        <option value="法师">法师</option>
+                        <option value="射手">射手</option>
+                        <option value="辅助">辅助</option>
                     </select>
                 </div>
                 <div class="col-md-4">
@@ -170,18 +176,6 @@ async function loadHeroes() {
             }
             renderHeroes(data.heroes);
             renderPagination(data.pagination);
-
-            // 更新职业筛选选项
-            if (roles.length === 0 && data.roles) {
-                roles = data.roles;
-                const roleSelect = document.getElementById('roleFilter');
-                roles.forEach(role => {
-                    const option = document.createElement('option');
-                    option.value = role;
-                    option.textContent = role;
-                    roleSelect.appendChild(option);
-                });
-            }
         }
     } catch (error) {
         console.error('Error:', error);

@@ -187,6 +187,8 @@ def heroes():
 @admin_required
 def api_get_heroes():
     """获取英雄列表API"""
+    from pypinyin import pinyin, Style
+    
     page = request.args.get('page', 1, type=int)
     role_filter = request.args.get('role', 'all')
     search_query = request.args.get('search', '')
@@ -206,25 +208,49 @@ def api_get_heroes():
         is_default = is_default_filter == 'true'
         query = query.filter_by(is_default=is_default)
     
-    # 分页
-    heroes = query.order_by(Hero.name).paginate(page=page, per_page=per_page, error_out=False)
+    # 获取所有符合条件的英雄
+    all_heroes = query.all()
     
-    all_heroes = Hero.query.order_by(Hero.name).all()
+    # 排序：默认英雄排前面，然后按拼音排序
+    def get_pinyin_key(hero):
+        try:
+            pinyin_list = pinyin(hero.name, style=Style.NORMAL)
+            return ''.join([p[0] for p in pinyin_list])
+        except:
+            return hero.name.lower()
+    
+    # 先按默认状态分组，再按拼音排序
+    default_heroes = [h for h in all_heroes if h.is_default]
+    non_default_heroes = [h for h in all_heroes if not h.is_default]
+    
+    default_heroes.sort(key=get_pinyin_key)
+    non_default_heroes.sort(key=get_pinyin_key)
+    
+    sorted_heroes = default_heroes + non_default_heroes
+    
+    # 手动分页
+    total = len(sorted_heroes)
+    total_pages = (total + per_page - 1) // per_page
+    start = (page - 1) * per_page
+    end = start + per_page
+    paginated_heroes = sorted_heroes[start:end]
+    
     default_hero_names = [h.name for h in Hero.get_default_heroes()]
-    roles = Hero.get_all_roles()
-    hero_images = load_hero_images_from_json()  # 获取英雄图片数据
+    # 使用固定顺序的职业列表
+    roles = ['坦克', '战士', '刺客', '法师', '射手', '辅助']
+    hero_images = load_hero_images_from_json()
     
     return jsonify({
         'success': True,
-        'heroes': [hero.to_dict() for hero in heroes.items],
-        'allHeroes': [hero.to_dict() for hero in all_heroes],
+        'heroes': [hero.to_dict() for hero in paginated_heroes],
+        'allHeroes': [hero.to_dict() for hero in sorted_heroes],
         'defaultHeroNames': default_hero_names,
         'roles': roles,
         'heroImages': hero_images,
         'pagination': {
             'currentPage': page,
-            'totalPages': heroes.pages,
-            'totalHeroes': heroes.total,
+            'totalPages': max(1, total_pages),
+            'totalHeroes': total,
             'perPage': per_page
         }
     })
