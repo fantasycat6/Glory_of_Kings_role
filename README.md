@@ -87,6 +87,7 @@ Glory_of_Kings_role/
 ├── app.py                  # 主应用入口
 ├── requirements.txt        # Python依赖
 ├── README.md               # 项目文档
+├── .env.example            # 环境变量示例
 ├── .gitignore              # Git忽略配置
 ├── start.cmd               # Windows启动脚本
 ├── config.py               # 配置文件
