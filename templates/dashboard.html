@@ -1,0 +1,51 @@
+{% extends 'base.html' %}
+
+{% block title %}我的账号 - 王者荣耀英雄统计{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2>我的游戏账号</h2>
+        <a href="{{ url_for('main.add_account') }}" class="btn btn-primary">
+            <i class="bi bi-plus-lg"></i> 添加账号
+        </a>
+    </div>
+
+    {% if not accounts %}
+        <div class="alert alert-info">
+            <i class="bi bi-info-circle"></i> 还没有添加游戏账号，点击"添加账号"开始管理你的英雄
+        </div>
+    {% else %}
+        <div class="row">
+            {% for account in accounts %}
+            <div class="col-md-6 col-lg-4 mb-3">
+                <div class="card h-100">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-start mb-2">
+                            <h5 class="card-title mb-0">{{ account.name }}</h5>
+                            <span class="badge bg-{{ 'primary' if account.login_type == 'qq' else 'success' }}">
+                                {{ 'QQ' if account.login_type == 'qq' else '微信' }}
+                            </span>
+                        </div>
+                        <p class="card-text text-muted mb-3">
+                            {{ '安卓' if account.platform == 'android' else '苹果' }}设备
+                        </p>
+                        <div class="d-flex gap-2">
+                            <a href="{{ url_for('main.account_detail', account_id=account.id) }}" class="btn btn-primary btn-sm flex-fill">
+                                管理区服
+                            </a>
+                            <form method="POST" action="{{ url_for('main.delete_account', account_id=account.id) }}" class="d-inline" onsubmit="return confirm('确定要删除这个账号吗？所有区服数据也会被删除。')">
+                                <button type="submit" class="btn btn-outline-danger btn-sm">删除</button>
+                            </form>
+                        </div>
+                    </div>
+                    <div class="card-footer text-muted">
+                        <small>创建时间：{{ account.created_at.strftime('%Y-%m-%d') if account.created_at else '-' }}</small>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    {% endif %}
+</div>
+{% endblock %}

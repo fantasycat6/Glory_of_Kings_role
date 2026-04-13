@@ -1,0 +1,64 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ account.name }} - 王者荣耀英雄统计{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2>{{ account.name }}</h2>
+            <p class="text-muted mb-0">
+                {{ 'QQ' if account.login_type == 'qq' else '微信' }} | 
+                {{ '安卓' if account.platform == 'android' else '苹果' }}
+            </p>
+        </div>
+        <a href="{{ url_for('main.dashboard') }}" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left"></i> 返回账号列表
+        </a>
+    </div>
+
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5 class="mb-0">添加区服</h5>
+        </div>
+        <div class="card-body">
+            <form method="POST" action="{{ url_for('main.add_region', account_id=account.id) }}" class="row g-3">
+                <div class="col-md-8">
+                    <input type="text" class="form-control" name="regionName" placeholder="输入区服名称，例如：微信1区 王者独尊" required>
+                </div>
+                <div class="col-md-4">
+                    <button type="submit" class="btn btn-primary w-100">添加区服</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <h4 class="mb-3">区服列表</h4>
+    
+    {% if not regions %}
+        <div class="alert alert-info">
+            <i class="bi bi-info-circle"></i> 还没有添加区服，在上方添加区服开始管理英雄
+        </div>
+    {% else %}
+        <div class="row">
+            {% for region in regions %}
+            <div class="col-md-6 col-lg-4 mb-3">
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title">{{ region.name }}</h5>
+                        <div class="d-flex gap-2 mt-3">
+                            <a href="{{ url_for('main.heroes', region_id=region.id) }}" class="btn btn-primary btn-sm flex-fill">
+                                管理英雄
+                            </a>
+                            <form method="POST" action="{{ url_for('main.delete_region', region_id=region.id) }}" class="d-inline" onsubmit="return confirm('确定要删除这个区服吗？所有英雄数据也会被删除。')">
+                                <button type="submit" class="btn btn-outline-danger btn-sm">删除</button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    {% endif %}
+</div>
+{% endblock %}

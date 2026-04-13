@@ -1,0 +1,269 @@
+{% extends 'base.html' %}
+
+{% block title %}用户管理 - 管理后台 - 王者荣耀英雄统计{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2>用户管理</h2>
+        <button class="btn btn-primary" onclick="showAddUserModal()">
+            <i class="bi bi-plus-lg"></i> 添加用户
+        </button>
+    </div>
+    
+    <div class="card">
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-striped">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>用户名</th>
+                            <th>邮箱</th>
+                            <th>管理员</th>
+                            <th>创建时间</th>
+                            <th>操作</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for user in users %}
+                        <tr data-user-id="{{ user.id }}">
+                            <td>{{ user.id }}</td>
+                            <td>{{ user.username }}</td>
+                            <td>{{ user.email or '-' }}</td>
+                            <td>
+                                <span class="badge bg-{{ 'success' if user.is_admin else 'secondary' }}">
+                                    {{ '是' if user.is_admin else '否' }}
+                                </span>
+                            </td>
+                            <td>{{ user.created_at.strftime('%Y-%m-%d %H:%M') if user.created_at else '-' }}</td>
+                            <td>
+                                <button class="btn btn-sm btn-outline-primary" onclick="editUser({{ user.id }})">编辑</button>
+                                {% if user.id != current_user.id %}
+                                <button class="btn btn-sm btn-outline-warning" onclick="resetPassword({{ user.id }})">重置密码</button>
+                                <button class="btn btn-sm btn-outline-danger" onclick="deleteUser({{ user.id }})">删除</button>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 添加/编辑用户模态框 -->
+<div class="modal fade" id="userModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="userModalTitle">添加用户</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="userForm">
+                    <input type="hidden" id="userId">
+                    <div class="mb-3">
+                        <label for="username" class="form-label">用户名</label>
+                        <input type="text" class="form-control" id="username" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="email" class="form-label">邮箱</label>
+                        <input type="email" class="form-control" id="email">
+                    </div>
+                    <div class="mb-3">
+                        <label for="password" class="form-label">密码 <small class="text-muted" id="passwordHint">（留空则不修改）</small></label>
+                        <div class="input-group">
+                            <input type="password" class="form-control" id="password" minlength="6">
+                            <button type="button" class="btn btn-outline-secondary" onclick="togglePasswordVisibility('password')">
+                                <i class="bi bi-eye" id="password-icon"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="mb-3 form-check">
+                        <input type="checkbox" class="form-check-input" id="isAdmin">
+                        <label class="form-check-label" for="isAdmin">管理员权限</label>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" onclick="saveUser()">保存</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 重置密码模态框 -->
+<div class="modal fade" id="resetPasswordModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">重置密码</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="resetPasswordForm">
+                    <input type="hidden" id="resetUserId">
+                    <div class="mb-3">
+                        <label for="newPassword" class="form-label">新密码</label>
+                        <div class="input-group">
+                            <input type="password" class="form-control" id="newPassword" required minlength="6">
+                            <button type="button" class="btn btn-outline-secondary" onclick="togglePasswordVisibility('newPassword')">
+                                <i class="bi bi-eye" id="newPassword-icon"></i>
+                            </button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" onclick="confirmResetPassword()">重置</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let userModal, resetPasswordModal;
+
+document.addEventListener('DOMContentLoaded', function() {
+    userModal = new bootstrap.Modal(document.getElementById('userModal'));
+    resetPasswordModal = new bootstrap.Modal(document.getElementById('resetPasswordModal'));
+});
+
+function showAddUserModal() {
+    document.getElementById('userForm').reset();
+    document.getElementById('userId').value = '';
+    document.getElementById('userModalTitle').textContent = '添加用户';
+    document.getElementById('passwordHint').textContent = '';
+    document.getElementById('password').required = true;
+    userModal.show();
+}
+
+async function editUser(userId) {
+    try {
+        const response = await fetch(`/api/admin/users/${userId}`);
+        const user = await response.json();
+        
+        document.getElementById('userId').value = user.id;
+        document.getElementById('username').value = user.username;
+        document.getElementById('email').value = user.email || '';
+        document.getElementById('isAdmin').checked = user.is_admin;
+        document.getElementById('password').value = '';
+        document.getElementById('password').required = false;
+        
+        document.getElementById('userModalTitle').textContent = '编辑用户';
+        document.getElementById('passwordHint').textContent = '（留空则不修改）';
+        userModal.show();
+    } catch (error) {
+        console.error('Error:', error);
+        alert('获取用户信息失败');
+    }
+}
+
+async function saveUser() {
+    const userId = document.getElementById('userId').value;
+    const data = {
+        username: document.getElementById('username').value,
+        email: document.getElementById('email').value,
+        isAdmin: document.getElementById('isAdmin').checked
+    };
+    
+    const password = document.getElementById('password').value;
+    if (password) data.password = password;
+    
+    const url = userId ? `/api/admin/users/${userId}` : '/api/admin/users';
+    const method = userId ? 'PUT' : 'POST';
+    
+    try {
+        const response = await fetch(url, {
+            method: method,
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            userModal.hide();
+            location.reload();
+        } else {
+            alert(result.error || '保存失败');
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        alert('保存失败，请重试');
+    }
+}
+
+function resetPassword(userId) {
+    document.getElementById('resetUserId').value = userId;
+    document.getElementById('newPassword').value = '';
+    resetPasswordModal.show();
+}
+
+async function confirmResetPassword() {
+    const userId = document.getElementById('resetUserId').value;
+    const password = document.getElementById('newPassword').value;
+    
+    try {
+        const response = await fetch(`/api/admin/users/${userId}/reset-password`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ password })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            resetPasswordModal.hide();
+            alert('密码已重置');
+        } else {
+            alert(result.message || '重置失败');
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        alert('重置失败，请重试');
+    }
+}
+
+function togglePasswordVisibility(inputId) {
+    const input = document.getElementById(inputId);
+    const icon = document.getElementById(inputId + '-icon');
+    if (input.type === 'password') {
+        input.type = 'text';
+        icon.classList.remove('bi-eye');
+        icon.classList.add('bi-eye-slash');
+    } else {
+        input.type = 'password';
+        icon.classList.remove('bi-eye-slash');
+        icon.classList.add('bi-eye');
+    }
+}
+
+async function deleteUser(userId) {
+    if (!confirm('确定要删除这个用户吗？此操作不可恢复。')) return;
+    
+    try {
+        const response = await fetch(`/api/admin/users/${userId}`, {
+            method: 'DELETE'
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            location.reload();
+        } else {
+            alert(result.error || '删除失败');
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        alert('删除失败，请重试');
+    }
+}
+</script>
+{% endblock %}

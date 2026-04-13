@@ -1,0 +1,370 @@
+{% extends 'base.html' %}
+
+{% block title %}英雄管理 - 管理后台 - 王者荣耀英雄统计{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2>英雄管理</h2>
+        <div>
+            <button class="btn btn-warning me-2" onclick="resetHeroes()">
+                <i class="bi bi-arrow-clockwise"></i> 重置为官方数据
+            </button>
+            <button class="btn btn-primary" onclick="showAddHeroModal()">
+                <i class="bi bi-plus-lg"></i> 添加英雄
+            </button>
+        </div>
+    </div>
+    
+    <!-- 筛选栏 -->
+    <div class="card mb-3">
+        <div class="card-body">
+            <div class="row align-items-center">
+                <div class="col-md-4 mb-2 mb-md-0">
+                    <input type="text" class="form-control" id="searchInput" placeholder="搜索英雄名称...">
+                </div>
+                <div class="col-md-4 mb-2 mb-md-0">
+                    <select class="form-select" id="roleFilter">
+                        <option value="all">全部职业</option>
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <select class="form-select" id="defaultFilter">
+                        <option value="all">全部</option>
+                        <option value="true">默认英雄</option>
+                        <option value="false">非默认</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="card">
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-striped">
+                    <thead>
+                        <tr>
+                            <th>头像</th>
+                            <th>名称</th>
+                            <th>职业</th>
+                            <th>默认英雄</th>
+                            <th>操作</th>
+                        </tr>
+                    </thead>
+                    <tbody id="heroesTable">
+                        <!-- 动态加载 -->
+                    </tbody>
+                </table>
+            </div>
+            
+            <!-- 分页 -->
+            <nav aria-label="Page navigation" class="mt-3">
+                <ul class="pagination justify-content-center" id="pagination">
+                    <!-- 动态加载 -->
+                </ul>
+            </nav>
+        </div>
+    </div>
+</div>
+
+<!-- 添加/编辑英雄模态框 -->
+<div class="modal fade" id="heroModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="heroModalTitle">添加英雄</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="heroForm">
+                    <input type="hidden" id="originalName">
+                    <div class="mb-3">
+                        <label for="heroName" class="form-label">英雄名称</label>
+                        <input type="text" class="form-control" id="heroName" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">职业（可多选）</label>
+                        <div class="form-check form-check-inline">
+                            <input class="form-check-input" type="checkbox" id="role_战士" name="heroRole" value="战士">
+                            <label class="form-check-label" for="role_战士">战士</label>
+                        </div>
+                        <div class="form-check form-check-inline">
+                            <input class="form-check-input" type="checkbox" id="role_法师" name="heroRole" value="法师">
+                            <label class="form-check-label" for="role_法师">法师</label>
+                        </div>
+                        <div class="form-check form-check-inline">
+                            <input class="form-check-input" type="checkbox" id="role_射手" name="heroRole" value="射手">
+                            <label class="form-check-label" for="role_射手">射手</label>
+                        </div>
+                        <div class="form-check form-check-inline">
+                            <input class="form-check-input" type="checkbox" id="role_刺客" name="heroRole" value="刺客">
+                            <label class="form-check-label" for="role_刺客">刺客</label>
+                        </div>
+                        <div class="form-check form-check-inline">
+                            <input class="form-check-input" type="checkbox" id="role_辅助" name="heroRole" value="辅助">
+                            <label class="form-check-label" for="role_辅助">辅助</label>
+                        </div>
+                        <div class="form-check form-check-inline">
+                            <input class="form-check-input" type="checkbox" id="role_坦克" name="heroRole" value="坦克">
+                            <label class="form-check-label" for="role_坦克">坦克</label>
+                        </div>
+                    </div>
+                    <div class="mb-3 form-check">
+                        <input type="checkbox" class="form-check-input" id="isDefault">
+                        <label class="form-check-label" for="isDefault">默认英雄</label>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" onclick="saveHero()">保存</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let heroModal;
+let currentPage = 1;
+let roles = [];
+let heroImages = {};
+
+document.addEventListener('DOMContentLoaded', function() {
+    heroModal = new bootstrap.Modal(document.getElementById('heroModal'));
+    loadHeroes();
+
+    // 搜索和筛选
+    document.getElementById('searchInput').addEventListener('input', debounce(loadHeroes, 300));
+    document.getElementById('roleFilter').addEventListener('change', () => { currentPage = 1; loadHeroes(); });
+    document.getElementById('defaultFilter').addEventListener('change', () => { currentPage = 1; loadHeroes(); });
+});
+
+function debounce(func, wait) {
+    let timeout;
+    return function executedFunction(...args) {
+        const later = () => {
+            clearTimeout(timeout);
+            func(...args);
+        };
+        clearTimeout(timeout);
+        timeout = setTimeout(later, wait);
+    };
+}
+
+async function loadHeroes() {
+    const search = document.getElementById('searchInput').value;
+    const role = document.getElementById('roleFilter').value;
+    const isDefault = document.getElementById('defaultFilter').value;
+
+    try {
+        const response = await fetch(`/api/admin/heroes?page=${currentPage}&search=${search}&role=${role}&isDefault=${isDefault}`);
+        const data = await response.json();
+
+        if (data.success) {
+            // 保存英雄图片数据
+            if (data.heroImages) {
+                heroImages = data.heroImages;
+            }
+            renderHeroes(data.heroes);
+            renderPagination(data.pagination);
+
+            // 更新职业筛选选项
+            if (roles.length === 0 && data.roles) {
+                roles = data.roles;
+                const roleSelect = document.getElementById('roleFilter');
+                roles.forEach(role => {
+                    const option = document.createElement('option');
+                    option.value = role;
+                    option.textContent = role;
+                    roleSelect.appendChild(option);
+                });
+            }
+        }
+    } catch (error) {
+        console.error('Error:', error);
+    }
+}
+
+function renderHeroes(heroes) {
+    const tbody = document.getElementById('heroesTable');
+    tbody.innerHTML = heroes.map(hero => {
+        const heroImage = heroImages[hero.name]?.image || '';
+        return `
+        <tr>
+            <td>
+                ${heroImage ?
+                    `<img src="${heroImage}" alt="${hero.name}" class="rounded-circle" style="width: 40px; height: 40px; object-fit: cover;">` :
+                    `<div class="rounded-circle bg-secondary d-inline-flex align-items-center justify-content-center"
+                         style="width: 40px; height: 40px;">
+                        <span class="text-white">${hero.name[0]}</span>
+                    </div>`
+                }
+            </td>
+            <td>${hero.name}</td>
+            <td>${hero.role}</td>
+            <td>
+                <span class="badge bg-${hero.is_default ? 'success' : 'secondary'}">
+                    ${hero.is_default ? '是' : '否'}
+                </span>
+            </td>
+            <td>
+                <button class="btn btn-sm btn-outline-primary" onclick="editHero('${hero.name}')">编辑</button>
+                <button class="btn btn-sm btn-outline-danger" onclick="deleteHero('${hero.name}')">删除</button>
+            </td>
+        </tr>
+    `}).join('');
+}
+
+function renderPagination(pagination) {
+    const ul = document.getElementById('pagination');
+    let html = '';
+
+    if (pagination.currentPage > 1) {
+        html += `<li class="page-item"><a class="page-link" href="javascript:void(0)" onclick="goToPage(event, ${pagination.currentPage - 1})">上一页</a></li>`;
+    }
+
+    for (let i = 1; i <= pagination.totalPages; i++) {
+        html += `<li class="page-item ${i === pagination.currentPage ? 'active' : ''}">
+            <a class="page-link" href="javascript:void(0)" onclick="goToPage(event, ${i})">${i}</a>
+        </li>`;
+    }
+
+    if (pagination.currentPage < pagination.totalPages) {
+        html += `<li class="page-item"><a class="page-link" href="javascript:void(0)" onclick="goToPage(event, ${pagination.currentPage + 1})">下一页</a></li>`;
+    }
+
+    ul.innerHTML = html;
+}
+
+function goToPage(event, page) {
+    event.preventDefault();
+    currentPage = page;
+    loadHeroes();
+}
+
+function showAddHeroModal() {
+    document.getElementById('heroForm').reset();
+    document.getElementById('originalName').value = '';
+    document.getElementById('heroModalTitle').textContent = '添加英雄';
+    heroModal.show();
+}
+
+function editHero(name) {
+    fetch(`/api/admin/heroes?page=1&search=${name}`)
+        .then(r => r.json())
+        .then(data => {
+            const hero = data.allHeroes.find(h => h.name === name);
+            if (hero) {
+                document.getElementById('originalName').value = hero.name;
+                document.getElementById('heroName').value = hero.name;
+                
+                // 重置所有职业checkbox
+                document.querySelectorAll('input[name="heroRole"]').forEach(cb => cb.checked = false);
+                
+                // 设置职业（可能是多职业，用/分隔）
+                if (hero.role) {
+                    const roles = hero.role.split('/');
+                    roles.forEach(role => {
+                        const checkbox = document.getElementById(`role_${role.trim()}`);
+                        if (checkbox) checkbox.checked = true;
+                    });
+                }
+                
+                document.getElementById('isDefault').checked = hero.is_default;
+                document.getElementById('heroModalTitle').textContent = '编辑英雄';
+                heroModal.show();
+            }
+        });
+}
+
+async function saveHero() {
+    const originalName = document.getElementById('originalName').value;
+    
+    // 获取选中的职业
+    const selectedRoles = [];
+    document.querySelectorAll('input[name="heroRole"]:checked').forEach(cb => {
+        selectedRoles.push(cb.value);
+    });
+    
+    if (selectedRoles.length === 0) {
+        alert('请至少选择一个职业');
+        return;
+    }
+    
+    const data = {
+        name: document.getElementById('heroName').value,
+        role: selectedRoles.join('/'),
+        isDefault: document.getElementById('isDefault').checked
+    };
+    
+    const url = originalName ? `/api/admin/heroes/${encodeURIComponent(originalName)}` : '/api/admin/heroes';
+    const method = originalName ? 'PUT' : 'POST';
+    
+    try {
+        const response = await fetch(url, {
+            method: method,
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            heroModal.hide();
+            loadHeroes();
+        } else {
+            alert(result.error || '保存失败');
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        alert('保存失败，请重试');
+    }
+}
+
+async function deleteHero(name) {
+    if (!confirm(`确定要删除英雄 "${name}" 吗？此操作不可恢复。`)) return;
+    
+    try {
+        const response = await fetch(`/api/admin/heroes/${encodeURIComponent(name)}`, {
+            method: 'DELETE'
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            loadHeroes();
+        } else {
+            alert(result.error || '删除失败');
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        alert('删除失败，请重试');
+    }
+}
+
+async function resetHeroes() {
+    if (!confirm('确定要重置英雄数据吗？这将恢复为官方英雄数据，所有自定义修改将丢失。')) return;
+    
+    try {
+        const response = await fetch('/api/admin/heroes/reset', {
+            method: 'POST'
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            alert(result.message);
+            loadHeroes();
+        } else {
+            alert(result.error || '重置失败');
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        alert('重置失败，请重试');
+    }
+}
+</script>
+{% endblock %}

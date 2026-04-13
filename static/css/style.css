@@ -1,0 +1,210 @@
+/* 王者荣耀英雄统计网站 - 自定义样式 */
+
+body {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+main {
+    flex: 1;
+}
+
+.footer {
+    margin-top: auto;
+}
+
+/* 英雄卡片样式 */
+.hero-card {
+    transition: all 0.2s ease;
+}
+
+.hero-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+}
+
+.hero-card.owned {
+    border-color: #28a745;
+    background-color: #f8fff8;
+}
+
+.owned-badge {
+    display: none;
+    position: absolute;
+    top: 0;
+    right: 0;
+    font-size: 0.65rem;
+    padding: 0.2em 0.4em;
+    border-radius: 0 0.25rem 0 0.25rem;
+    z-index: 10;
+}
+
+.hero-card.owned .owned-badge {
+    display: inline-block;
+}
+
+/* 统计卡片固定 */
+.stats-card {
+    position: sticky;
+    top: 20px;
+}
+
+/* 选择框样式 */
+.selection-box {
+    position: fixed;
+    border: 2px dashed #0d6efd;
+    background: rgba(13, 110, 253, 0.1);
+    pointer-events: none;
+    z-index: 1000;
+}
+
+/* 角色筛选按钮 */
+.role-filter .btn {
+    margin-right: 5px;
+    margin-bottom: 5px;
+}
+
+.role-filter .btn.active {
+    background-color: #0d6efd;
+    color: white;
+}
+
+/* 多选模式样式 */
+.hero-card.selected-temp {
+    border-color: #0d6efd;
+    background-color: #e7f1ff;
+}
+
+.hero-card.drag-highlight {
+    border-color: #0d6efd;
+    box-shadow: 0 0 0 3px rgba(13, 110, 253, 0.3);
+}
+
+/* 导航栏样式 */
+.navbar-brand {
+    font-weight: bold;
+}
+
+/* 卡片悬停效果 */
+.card {
+    transition: box-shadow 0.2s ease;
+}
+
+.card:hover {
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+}
+
+/* 表格样式 */
+.table th {
+    font-weight: 600;
+    background-color: #f8f9fa;
+}
+
+/* 按钮样式优化 */
+.btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+/* 响应式调整 */
+@media (max-width: 768px) {
+    .stats-card {
+        position: static;
+        margin-bottom: 1rem;
+    }
+    
+    .hero-card .card-body {
+        padding: 0.5rem;
+    }
+    
+    .hero-card img {
+        width: 50px !important;
+        height: 50px !important;
+    }
+}
+
+/* 警告框动画 */
+.alert {
+    animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* 模态框样式 */
+.modal-header {
+    background-color: #f8f9fa;
+}
+
+.modal-title {
+    font-weight: 600;
+}
+
+/* 进度条样式 */
+.progress {
+    height: 20px;
+    border-radius: 10px;
+}
+
+.progress-bar {
+    border-radius: 10px;
+}
+
+/* 徽章样式 */
+.badge {
+    font-weight: 500;
+}
+
+/* 表单样式 */
+.form-control:focus,
+.form-select:focus {
+    border-color: #0d6efd;
+    box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.25);
+}
+
+/* 分页样式 */
+.pagination .page-link {
+    color: #0d6efd;
+    position: relative;
+    z-index: 1;
+}
+
+.pagination .page-item.active .page-link {
+    background-color: #0d6efd;
+    border-color: #0d6efd;
+    color: #fff;
+    z-index: 2;
+}
+
+/* 下拉菜单样式 */
+.dropdown-menu {
+    border: none;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+
+.dropdown-item:hover {
+    background-color: #e9ecef;
+}
+
+/* 管理员后台样式 */
+.admin-card {
+    border-left: 4px solid #0d6efd;
+}
+
+.admin-card.bg-success {
+    border-left-color: #198754;
+}
+
+.admin-card.bg-info {
+    border-left-color: #0dcaf0;
+}

@@ -1,0 +1,87 @@
+{% extends 'base.html' %}
+
+{% block title %}管理后台 - 王者荣耀英雄统计{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h2 class="mb-4">管理后台</h2>
+    
+    <div class="row">
+        <div class="col-md-4 mb-3">
+            <div class="card text-white bg-primary">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h4 class="card-title">{{ users|length }}</h4>
+                            <p class="card-text">注册用户</p>
+                        </div>
+                        <i class="bi bi-people display-4"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4 mb-3">
+            <div class="card text-white bg-success">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h4 class="card-title">{{ heroes|length }}</h4>
+                            <p class="card-text">英雄数量</p>
+                        </div>
+                        <i class="bi bi-person-badge display-4"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4 mb-3">
+            <div class="card text-white bg-info">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h4 class="card-title">管理功能</h4>
+                            <p class="card-text">系统管理</p>
+                        </div>
+                        <i class="bi bi-gear display-4"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="row mt-4">
+        <div class="col-md-6 mb-3">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">用户管理</h5>
+                </div>
+                <div class="card-body">
+                    <p>管理系统用户账号，包括添加、编辑、删除用户，重置密码等操作。</p>
+                    <a href="{{ url_for('admin.users') }}" class="btn btn-primary">进入用户管理</a>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6 mb-3">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">英雄管理</h5>
+                </div>
+                <div class="card-body">
+                    <p>管理英雄数据，包括添加、编辑、删除英雄，重置为官方数据等。</p>
+                    <a href="{{ url_for('admin.heroes') }}" class="btn btn-primary">进入英雄管理</a>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6 mb-3">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">备份管理</h5>
+                </div>
+                <div class="card-body">
+                    <p>备份和恢复系统数据，导出/导入英雄数据，防止数据丢失。</p>
+                    <a href="{{ url_for('admin.backup') }}" class="btn btn-primary">进入备份管理</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

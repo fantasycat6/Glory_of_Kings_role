@@ -1,0 +1,695 @@
+"""
+管理后台蓝图 - 用户管理、英雄管理、备份管理
+"""
+from flask import Blueprint, render_template, jsonify, request, redirect, url_for, flash, Response, send_file
+from flask_login import login_required, current_user
+from functools import wraps
+from models import db, User, Account, Region, Hero, HeroOwnership, BackupFile, load_heroes_from_json, load_hero_images_from_json
+import json
+import os
+from datetime import datetime
+from pathlib import Path
+
+admin_bp = Blueprint('admin', __name__)
+
+
+def admin_required(f):
+    """管理员权限装饰器"""
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if not current_user.is_authenticated or not current_user.is_admin:
+            if request.is_json:
+                return jsonify({'success': False, 'message': '需要管理员权限'}), 403
+            flash('需要管理员权限', 'error')
+            return redirect(url_for('main.index'))
+        return f(*args, **kwargs)
+    return decorated_function
+
+
+# ==================== 管理后台主页 ====================
+
+@admin_bp.route('/admin/')
+@login_required
+@admin_required
+def index():
+    """管理后台首页"""
+    users = User.query.all()
+    heroes = Hero.query.all()
+    return render_template('admin/dashboard.html', users=users, heroes=heroes)
+
+
+# ==================== 用户管理 ====================
+
+@admin_bp.route('/admin/users')
+@login_required
+@admin_required
+def users():
+    """用户管理页面"""
+    users = User.query.all()
+    return render_template('admin/users.html', users=users, current_user=current_user)
+
+
+@admin_bp.route('/api/admin/users', methods=['GET'])
+@login_required
+@admin_required
+def api_get_users():
+    """获取用户列表API"""
+    users = User.query.all()
+    return jsonify([user.to_dict() for user in users])
+
+
+@admin_bp.route('/api/admin/users/<int:user_id>', methods=['GET'])
+@login_required
+@admin_required
+def api_get_user(user_id):
+    """获取单个用户信息API"""
+    user = User.query.get_or_404(user_id)
+    return jsonify(user.to_dict())
+
+
+@admin_bp.route('/api/admin/users', methods=['POST'])
+@login_required
+@admin_required
+def api_create_user():
+    """创建用户API"""
+    data = request.get_json()
+    username = data.get('username', '').strip()
+    password = data.get('password', '')
+    email = data.get('email', '').strip()
+    is_admin = data.get('isAdmin', False)
+    
+    if not username or not password:
+        return jsonify({'success': False, 'error': '用户名和密码不能为空'}), 400
+    
+    if len(password) < 6:
+        return jsonify({'success': False, 'error': '密码长度至少6位'}), 400
+    
+    if User.query.filter_by(username=username).first():
+        return jsonify({'success': False, 'error': '用户名已存在'}), 400
+    
+    user = User(username=username, email=email, is_admin=is_admin)
+    user.set_password(password)
+    db.session.add(user)
+    db.session.commit()
+    
+    return jsonify({'success': True, 'user': user.to_dict()})
+
+
+@admin_bp.route('/api/admin/users/<int:user_id>', methods=['PUT'])
+@login_required
+@admin_required
+def api_update_user(user_id):
+    """更新用户API"""
+    user = User.query.get_or_404(user_id)
+    data = request.get_json()
+    
+    username = data.get('username', '').strip()
+    email = data.get('email', '').strip()
+    is_admin = data.get('isAdmin')
+    password = data.get('password', '')
+    
+    # 检查是否至少保留一个管理员
+    if user.is_admin and not is_admin:
+        admin_count = User.query.filter_by(is_admin=True).count()
+        if admin_count <= 1:
+            return jsonify({'success': False, 'error': '至少需要保留一个管理员'}), 400
+    
+    if username and username != user.username:
+        if User.query.filter_by(username=username).first():
+            return jsonify({'success': False, 'error': '用户名已存在'}), 400
+        user.username = username
+    
+    if email is not None:
+        user.email = email
+    
+    if is_admin is not None:
+        user.is_admin = is_admin
+    
+    if password and len(password) >= 6:
+        user.set_password(password)
+    
+    db.session.commit()
+    return jsonify({'success': True, 'user': user.to_dict()})
+
+
+@admin_bp.route('/api/admin/users/<int:user_id>', methods=['DELETE'])
+@login_required
+@admin_required
+def api_delete_user(user_id):
+    """删除用户API"""
+    user = User.query.get_or_404(user_id)
+    
+    if user.id == current_user.id:
+        return jsonify({'success': False, 'error': '不能删除当前登录的账号'}), 400
+    
+    # 检查是否至少保留一个管理员
+    if user.is_admin:
+        admin_count = User.query.filter_by(is_admin=True).count()
+        if admin_count <= 1:
+            return jsonify({'success': False, 'error': '至少需要保留一个管理员'}), 400
+    
+    db.session.delete(user)
+    db.session.commit()
+    
+    return jsonify({'success': True})
+
+
+@admin_bp.route('/api/admin/users/<int:user_id>/reset-password', methods=['POST'])
+@login_required
+@admin_required
+def api_reset_password(user_id):
+    """重置用户密码API"""
+    user = User.query.get_or_404(user_id)
+    data = request.get_json()
+    password = data.get('password', '')
+    
+    if not password or len(password) < 6:
+        return jsonify({'success': False, 'error': '密码长度至少6位'}), 400
+    
+    user.set_password(password)
+    db.session.commit()
+    
+    return jsonify({'success': True, 'message': '密码已重置'})
+
+
+# ==================== 英雄管理 ====================
+
+@admin_bp.route('/admin/heroes')
+@login_required
+@admin_required
+def heroes():
+    """英雄管理页面"""
+    return render_template('admin/heroes.html')
+
+
+@admin_bp.route('/api/admin/heroes', methods=['GET'])
+@login_required
+@admin_required
+def api_get_heroes():
+    """获取英雄列表API"""
+    page = request.args.get('page', 1, type=int)
+    role_filter = request.args.get('role', 'all')
+    search_query = request.args.get('search', '')
+    is_default_filter = request.args.get('isDefault', 'all')
+    per_page = 10
+    
+    query = Hero.query
+    
+    # 筛选
+    if role_filter != 'all':
+        query = query.filter(Hero.role.like(f'%{role_filter}%'))
+    
+    if search_query:
+        query = query.filter(Hero.name.like(f'%{search_query}%'))
+    
+    if is_default_filter != 'all':
+        is_default = is_default_filter == 'true'
+        query = query.filter_by(is_default=is_default)
+    
+    # 分页
+    heroes = query.order_by(Hero.name).paginate(page=page, per_page=per_page, error_out=False)
+    
+    all_heroes = Hero.query.order_by(Hero.name).all()
+    default_hero_names = [h.name for h in Hero.get_default_heroes()]
+    roles = Hero.get_all_roles()
+    hero_images = load_hero_images_from_json()  # 获取英雄图片数据
+    
+    return jsonify({
+        'success': True,
+        'heroes': [hero.to_dict() for hero in heroes.items],
+        'allHeroes': [hero.to_dict() for hero in all_heroes],
+        'defaultHeroNames': default_hero_names,
+        'roles': roles,
+        'heroImages': hero_images,
+        'pagination': {
+            'currentPage': page,
+            'totalPages': heroes.pages,
+            'totalHeroes': heroes.total,
+            'perPage': per_page
+        }
+    })
+
+
+@admin_bp.route('/api/admin/heroes', methods=['POST'])
+@login_required
+@admin_required
+def api_create_hero():
+    """添加英雄API"""
+    data = request.get_json()
+    name = data.get('name', '').strip()
+    role = data.get('role', '').strip()
+    is_default = data.get('isDefault', False)
+    
+    if not name or not role:
+        return jsonify({'success': False, 'error': '英雄名称和职业不能为空'}), 400
+    
+    if Hero.query.get(name):
+        return jsonify({'success': False, 'error': '英雄已存在'}), 400
+    
+    hero = Hero(name=name, role=role, is_default=is_default)
+    db.session.add(hero)
+    db.session.commit()
+    
+    return jsonify({'success': True, 'hero': hero.to_dict()})
+
+
+@admin_bp.route('/api/admin/heroes/<hero_name>', methods=['PUT'])
+@login_required
+@admin_required
+def api_update_hero(hero_name):
+    """更新英雄API"""
+    hero = Hero.query.get_or_404(hero_name)
+    data = request.get_json()
+    
+    new_name = data.get('name', '').strip()
+    role = data.get('role', '').strip()
+    is_default = data.get('isDefault')
+    
+    # 如果修改了名称，检查新名称是否已存在
+    if new_name and new_name != hero_name:
+        if Hero.query.get(new_name):
+            return jsonify({'success': False, 'error': '新名称的英雄已存在'}), 400
+        
+        # 创建新英雄记录
+        new_hero = Hero(name=new_name, role=role or hero.role, is_default=is_default if is_default is not None else hero.is_default)
+        db.session.add(new_hero)
+        
+        # 更新所有相关记录
+        HeroOwnership.query.filter_by(hero_name=hero_name).update({'hero_name': new_name})
+        
+        # 删除旧英雄记录
+        db.session.delete(hero)
+        db.session.commit()
+        
+        return jsonify({'success': True, 'hero': new_hero.to_dict()})
+    
+    if role:
+        hero.role = role
+    if is_default is not None:
+        hero.is_default = is_default
+    
+    db.session.commit()
+    return jsonify({'success': True, 'hero': hero.to_dict()})
+
+
+@admin_bp.route('/api/admin/heroes/<hero_name>', methods=['DELETE'])
+@login_required
+@admin_required
+def api_delete_hero(hero_name):
+    """删除英雄API"""
+    hero = Hero.query.get_or_404(hero_name)
+    
+    db.session.delete(hero)
+    db.session.commit()
+    
+    return jsonify({'success': True})
+
+
+@admin_bp.route('/api/admin/heroes/reset', methods=['POST'])
+@login_required
+@admin_required
+def api_reset_heroes():
+    """重置英雄数据API"""
+    heroes_data, default_hero_names = load_heroes_from_json()
+    
+    # 清空现有英雄数据
+    Hero.query.delete()
+    
+    # 重新导入
+    for hero_data in heroes_data:
+        hero = Hero(
+            name=hero_data['name'],
+            role=hero_data['role'],
+            is_default=hero_data['name'] in default_hero_names
+        )
+        db.session.add(hero)
+    
+    db.session.commit()
+    
+    return jsonify({
+        'success': True,
+        'message': f'英雄数据已重置: {len(heroes_data)} 位英雄',
+        'heroes': len(heroes_data)
+    })
+
+
+# ==================== 备份管理 ====================
+
+@admin_bp.route('/admin/backup')
+@login_required
+@admin_required
+def backup():
+    """备份管理页面"""
+    return render_template('admin/backup.html')
+
+
+@admin_bp.route('/api/admin/backup/export')
+@login_required
+@admin_required
+def api_export_backup():
+    """导出备份"""
+    heroes = [hero.to_dict() for hero in Hero.query.order_by(Hero.name).all()]
+    default_heroes = [h.name for h in Hero.get_default_heroes()]
+    
+    backup_data = {
+        'version': '1.0',
+        'exported_at': datetime.now().isoformat(),
+        'heroes': heroes,
+        'default_heroes': default_heroes
+    }
+    
+    filename = f"wzry_backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+    
+    return Response(
+        json.dumps(backup_data, ensure_ascii=False, indent=2),
+        mimetype='application/json',
+        headers={'Content-Disposition': f'attachment; filename="{filename}"'}
+    )
+
+
+@admin_bp.route('/api/admin/backup/create', methods=['POST'])
+@login_required
+@admin_required
+def api_create_backup():
+    """创建备份"""
+    heroes = [hero.to_dict() for hero in Hero.query.order_by(Hero.name).all()]
+    default_heroes = [h.name for h in Hero.get_default_heroes()]
+    
+    backup_data = {
+        'version': '1.0',
+        'exported_at': datetime.now().isoformat(),
+        'heroes': heroes,
+        'default_heroes': default_heroes
+    }
+    
+    # 确保备份目录存在
+    backup_dir = Path(__file__).parent / 'backup'
+    backup_dir.mkdir(exist_ok=True)
+    
+    filename = f"wzry_backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+    filepath = backup_dir / filename
+    
+    with open(filepath, 'w', encoding='utf-8') as f:
+        json.dump(backup_data, f, ensure_ascii=False, indent=2)
+    
+    # 记录到数据库
+    backup_record = BackupFile(
+        filename=filename,
+        filepath=str(filepath),
+        file_size=filepath.stat().st_size,
+        backup_type='manual',
+        description='手动备份'
+    )
+    db.session.add(backup_record)
+    db.session.commit()
+    
+    return jsonify({'success': True, 'filename': filename, 'backup': backup_record.to_dict()})
+
+
+@admin_bp.route('/api/admin/backup/import', methods=['POST'])
+@login_required
+@admin_required
+def api_import_backup():
+    """导入备份"""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'success': False, 'error': '请求数据为空'}), 400
+        
+        backup_data = data.get('data')
+        mode = data.get('mode', 'merge')  # merge or overwrite
+        
+        if not backup_data or not isinstance(backup_data, dict) or 'heroes' not in backup_data:
+            return jsonify({'success': False, 'error': '无效的备份文件格式'}), 400
+        
+        heroes = backup_data['heroes']
+        default_heroes = backup_data.get('default_heroes', [])
+        
+        imported = 0
+        skipped = 0
+        errors = 0
+        
+        # 覆盖模式：先备份用户拥有记录并清空表
+        ownership_backup = []
+        if mode == 'overwrite':
+            ownership_backup = [
+                {
+                    'account_id': o.account_id,
+                    'region_id': o.region_id,
+                    'hero_name': o.hero_name
+                }
+                for o in HeroOwnership.query.all()
+            ]
+            HeroOwnership.query.delete()
+            Hero.query.delete()
+            db.session.commit()
+        
+        # 收集备份中已有的英雄名称，避免重复查询
+        existing_hero_names = set()
+        if mode != 'overwrite':
+            existing_hero_names = {h.name for h in Hero.query.all()}
+        
+        for hero_data in heroes:
+            try:
+                if not hero_data.get('name') or not hero_data.get('role'):
+                    errors += 1
+                    continue
+                
+                hero_name = hero_data['name']
+                
+                # 非覆盖模式：检查是否已存在
+                if mode != 'overwrite' and hero_name in existing_hero_names:
+                    skipped += 1
+                    continue
+                
+                hero = Hero(
+                    name=hero_name,
+                    role=hero_data['role'],
+                    is_default=hero_name in default_heroes
+                )
+                db.session.add(hero)
+                imported += 1
+            except Exception as e:
+                print(f"导入英雄错误: {hero_data.get('name')}, {e}")
+                errors += 1
+        
+        db.session.commit()
+        
+        # 恢复用户拥有记录（过滤掉已删除的英雄）
+        restored = 0
+        skipped_ownerships = 0
+        if mode == 'overwrite' and ownership_backup:
+            new_hero_names = {h.name for h in Hero.query.all()}
+            # 获取现有的ownership记录用于查重
+            existing_ownerships = set()
+            for o in HeroOwnership.query.all():
+                existing_ownerships.add((o.account_id, o.region_id, o.hero_name))
+            
+            for ownership_data in ownership_backup:
+                if ownership_data['hero_name'] in new_hero_names:
+                    key = (ownership_data['account_id'], ownership_data['region_id'], ownership_data['hero_name'])
+                    if key not in existing_ownerships:
+                        new_ownership = HeroOwnership(
+                            account_id=ownership_data['account_id'],
+                            region_id=ownership_data['region_id'],
+                            hero_name=ownership_data['hero_name']
+                        )
+                        db.session.add(new_ownership)
+                        restored += 1
+                    else:
+                        skipped_ownerships += 1
+            db.session.commit()
+        
+        message = f'导入完成：成功 {imported} 个英雄，跳过 {skipped} 个，失败 {errors} 个'
+        if restored > 0:
+            message += f'，恢复 {restored} 条用户记录'
+        if skipped_ownerships > 0:
+            message += f'，跳过 {skipped_ownerships} 条重复记录'
+        
+        return jsonify({
+            'success': True,
+            'message': message,
+            'imported': imported,
+            'skipped': skipped,
+            'errors': errors,
+            'restored': restored
+        })
+    except Exception as e:
+        db.session.rollback()
+        print(f"导入备份错误: {e}")
+        return jsonify({'success': False, 'error': f'导入失败: {str(e)}'}), 500
+
+
+@admin_bp.route('/api/admin/backup/list', methods=['GET'])
+@login_required
+@admin_required
+def api_list_backups():
+    """获取备份列表"""
+    backups = BackupFile.query.order_by(BackupFile.created_at.desc()).all()
+    return jsonify({'success': True, 'backups': [b.to_dict() for b in backups]})
+
+
+@admin_bp.route('/api/admin/backup/download/<int:backup_id>')
+@login_required
+@admin_required
+def api_download_backup(backup_id):
+    """下载备份文件"""
+    backup = BackupFile.query.get_or_404(backup_id)
+    
+    if not os.path.exists(backup.filepath):
+        return jsonify({'success': False, 'error': '备份文件不存在'}), 404
+    
+    return send_file(
+        backup.filepath,
+        as_attachment=True,
+        download_name=backup.filename,
+        mimetype='application/json'
+    )
+
+
+@admin_bp.route('/api/admin/backup/restore/<int:backup_id>', methods=['POST'])
+@login_required
+@admin_required
+def api_restore_backup(backup_id):
+    """恢复备份"""
+    try:
+        backup = BackupFile.query.get_or_404(backup_id)
+
+        if not os.path.exists(backup.filepath):
+            return jsonify({'success': False, 'error': '备份文件不存在'}), 404
+
+        try:
+            with open(backup.filepath, 'r', encoding='utf-8') as f:
+                backup_data = json.load(f)
+        except Exception as e:
+            return jsonify({'success': False, 'error': f'备份文件解析失败: {e}'}), 400
+
+        if 'heroes' not in backup_data:
+            return jsonify({'success': False, 'error': '无效的备份文件格式'}), 400
+
+        mode = 'overwrite'
+        if request.is_json:
+            mode = request.json.get('mode', 'overwrite')
+        
+        heroes = backup_data['heroes']
+        default_heroes = backup_data.get('default_heroes', [])
+        
+        imported = 0
+        skipped = 0
+        errors = 0
+        
+        # 覆盖模式：先备份用户拥有记录并清空表
+        ownership_backup = []
+        if mode == 'overwrite':
+            ownership_backup = [
+                {
+                    'account_id': o.account_id,
+                    'region_id': o.region_id,
+                    'hero_name': o.hero_name
+                }
+                for o in HeroOwnership.query.all()
+            ]
+            HeroOwnership.query.delete()
+            Hero.query.delete()
+            db.session.commit()
+        
+        # 收集备份中已有的英雄名称，避免重复查询
+        existing_hero_names = set()
+        if mode != 'overwrite':
+            existing_hero_names = {h.name for h in Hero.query.all()}
+        
+        for hero_data in heroes:
+            try:
+                if not hero_data.get('name') or not hero_data.get('role'):
+                    errors += 1
+                    continue
+                
+                hero_name = hero_data['name']
+                
+                # 非覆盖模式：检查是否已存在
+                if mode != 'overwrite' and hero_name in existing_hero_names:
+                    skipped += 1
+                    continue
+                
+                hero = Hero(
+                    name=hero_name,
+                    role=hero_data['role'],
+                    is_default=hero_name in default_heroes
+                )
+                db.session.add(hero)
+                imported += 1
+            except Exception as e:
+                print(f"恢复英雄错误: {hero_data.get('name')}, {e}")
+                errors += 1
+        
+        db.session.commit()
+        
+        # 恢复用户拥有记录（检查重复）
+        restored = 0
+        skipped_ownerships = 0
+        if mode == 'overwrite' and ownership_backup:
+            # 获取新导入的英雄名称集合
+            new_hero_names = {h.name for h in Hero.query.all()}
+            # 获取现有的ownership记录用于查重（此时应该为空，因为已经删除了）
+            existing_ownerships = set()
+            for o in HeroOwnership.query.all():
+                existing_ownerships.add((o.account_id, o.region_id, o.hero_name))
+            
+            for ownership_data in ownership_backup:
+                if ownership_data['hero_name'] in new_hero_names:
+                    key = (ownership_data['account_id'], ownership_data['region_id'], ownership_data['hero_name'])
+                    if key not in existing_ownerships:
+                        new_ownership = HeroOwnership(
+                            account_id=ownership_data['account_id'],
+                            region_id=ownership_data['region_id'],
+                            hero_name=ownership_data['hero_name']
+                        )
+                        db.session.add(new_ownership)
+                        restored += 1
+                    else:
+                        skipped_ownerships += 1
+            db.session.commit()
+        
+        message = f'恢复完成：成功 {imported} 个英雄，跳过 {skipped} 个，失败 {errors} 个'
+        if restored > 0:
+            message += f'，恢复 {restored} 条用户记录'
+        if skipped_ownerships > 0:
+            message += f'，跳过 {skipped_ownerships} 条重复记录'
+        
+        return jsonify({
+            'success': True,
+            'message': message,
+            'imported': imported,
+            'skipped': skipped,
+            'errors': errors,
+            'restored': restored
+        })
+    except Exception as e:
+        db.session.rollback()
+        print(f"恢复备份错误: {e}")
+        return jsonify({'success': False, 'error': f'恢复失败: {str(e)}'}), 500
+
+
+@admin_bp.route('/api/admin/backup/<int:backup_id>', methods=['DELETE'])
+@login_required
+@admin_required
+def api_delete_backup(backup_id):
+    """删除备份"""
+    backup = BackupFile.query.get(backup_id)
+    
+    # 如果记录不存在，可能是已经被删除了，返回成功
+    if not backup:
+        return jsonify({'success': True, 'message': '备份已删除'})
+    
+    # 删除文件
+    if os.path.exists(backup.filepath):
+        try:
+            os.remove(backup.filepath)
+        except Exception as e:
+            return jsonify({'success': False, 'error': f'删除文件失败: {e}'}), 500
+    
+    # 从数据库删除记录
+    db.session.delete(backup)
+    db.session.commit()
+    
+    return jsonify({'success': True, 'message': '备份已删除'})

@@ -1,0 +1,547 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ region.name }} - 英雄管理 - 王者荣耀英雄统计{% endblock %}
+
+{% block extra_css %}
+<style>
+    .hero-card {
+        cursor: pointer;
+        transition: all 0.2s;
+        user-select: none;
+    }
+    .hero-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    }
+    .hero-card.owned {
+        border-color: #28a745;
+        background-color: #f8fff8;
+    }
+    .hero-card.owned .owned-badge {
+        display: inline-block;
+    }
+    .owned-badge {
+        display: none;
+        position: absolute;
+        top: 0;
+        right: 0;
+        font-size: 0.65rem;
+        padding: 0.2em 0.4em;
+        border-radius: 0 0.25rem 0 0.25rem;
+        z-index: 10;
+    }
+    .stats-card {
+        position: sticky;
+        top: 20px;
+    }
+    .role-filter .btn {
+        margin-right: 5px;
+        margin-bottom: 5px;
+    }
+    /* 多选模式选中状态 */
+    .hero-card.selected-temp {
+        border-color: #0d6efd;
+        background-color: #e7f1ff;
+    }
+    /* 框选高亮 */
+    .hero-card.drag-highlight {
+        border-color: #0d6efd;
+        box-shadow: 0 0 0 3px rgba(13, 110, 253, 0.3);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <div class="row">
+        <!-- 左侧：英雄列表 -->
+        <div class="col-lg-9">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <div>
+                    <h3>{{ region.name }}</h3>
+                    <p class="text-muted mb-0">
+                        {{ account.name }} | 
+                        {{ 'QQ' if account.login_type == 'qq' else '微信' }} | 
+                        {{ '安卓' if account.platform == 'android' else '苹果' }}
+                    </p>
+                </div>
+                <a href="{{ url_for('main.account_detail', account_id=account.id) }}" class="btn btn-outline-secondary">返回区服列表</a>
+            </div>
+
+            <!-- 搜索和筛选 -->
+            <div class="card mb-3">
+                <div class="card-body">
+                    <div class="row align-items-center">
+                        <div class="col-md-4 mb-2 mb-md-0">
+                            <input type="text" class="form-control" id="searchInput" placeholder="搜索英雄名称...">
+                        </div>
+                        <div class="col-md-8">
+                            <div class="role-filter">
+                                <button class="btn btn-sm btn-outline-primary active" data-role="all">全部</button>
+                                <button class="btn btn-sm btn-outline-primary" data-role="坦克">坦克</button>
+                                <button class="btn btn-sm btn-outline-primary" data-role="战士">战士</button>
+                                <button class="btn btn-sm btn-outline-primary" data-role="刺客">刺客</button>
+                                <button class="btn btn-sm btn-outline-primary" data-role="法师">法师</button>
+                                <button class="btn btn-sm btn-outline-primary" data-role="射手">射手</button>
+                                <button class="btn btn-sm btn-outline-primary" data-role="辅助">辅助</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 批量操作栏 -->
+            <div class="card mb-3 bg-light" id="batchActions" style="display: none;">
+                <div class="card-body py-2">
+                    <div class="d-flex align-items-center flex-wrap gap-2">
+                        <span class="text-muted">多选模式：</span>
+                        <button class="btn btn-sm btn-success" onclick="batchSelect(true)">
+                            <i class="bi bi-check-all"></i> 全选
+                        </button>
+                        <button class="btn btn-sm btn-warning" onclick="batchSelect(false)">
+                            <i class="bi bi-x-circle"></i> 取消
+                        </button>
+                        <button class="btn btn-sm btn-primary" onclick="confirmBatchSelection()">
+                            <i class="bi bi-check-lg"></i> 确认
+                        </button>
+                        <button class="btn btn-sm btn-secondary" onclick="cancelBatchSelection()">
+                            <i class="bi bi-x-lg"></i> 退出
+                        </button>
+                        <span class="badge bg-primary ms-auto" id="selectedCount">已选择: 0</span>
+                    </div>
+                    <div class="mt-2 text-muted small">
+                        <i class="bi bi-info-circle"></i> 提示：拖动鼠标框选英雄，再次框选已选中英雄可取消
+                    </div>
+                </div>
+            </div>
+
+            <!-- 多选模式入口 -->
+            <div class="card mb-3" id="normalActions">
+                <div class="card-body py-2 d-flex justify-content-between align-items-center">
+                    <span class="text-muted">点击英雄卡片切换拥有状态</span>
+                    <button class="btn btn-sm btn-outline-primary" onclick="enterMultiSelectMode()">
+                        <i class="bi bi-check2-square"></i> 多选
+                    </button>
+                </div>
+            </div>
+
+            <!-- 英雄网格 -->
+            <div class="row" id="heroGrid">
+                {% for hero in heroes %}
+                {% set is_owned = hero.name in owned_hero_names %}
+                {% set hero_image = hero_images.get(hero.name) %}
+                <div class="col-6 col-sm-4 col-md-3 col-lg-2 mb-3 hero-item" 
+                     data-name="{{ hero.name }}" 
+                     data-role="{{ hero.role }}">
+                    <div class="card hero-card {{ 'owned' if is_owned else '' }}" 
+                         data-hero-name="{{ hero.name }}">
+                        <div class="card-body text-center p-2 position-relative">
+                            <span class="badge bg-success owned-badge">已拥有</span>
+                            <div class="mb-2">
+                                {% if hero_image %}
+                                <a href="{{ hero_image.url }}" target="_blank" onclick="event.stopPropagation();">
+                                    <img src="{{ hero_image.image }}" alt="{{ hero.name }}" 
+                                         class="rounded-circle" style="width: 60px; height: 60px; object-fit: cover;">
+                                </a>
+                                {% else %}
+                                <div class="rounded-circle bg-secondary d-inline-flex align-items-center justify-content-center" 
+                                     style="width: 60px; height: 60px;">
+                                    <span class="text-white">{{ hero.name[0] }}</span>
+                                </div>
+                                {% endif %}
+                            </div>
+                            <h6 class="card-title mb-1">{{ hero.name }}</h6>
+                            <small class="text-muted">{{ hero.role }}</small>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- 右侧：统计信息 -->
+        <div class="col-lg-3">
+            <div class="card stats-card">
+                <div class="card-header">
+                    <h5 class="mb-0">收集统计</h5>
+                </div>
+                <div class="card-body">
+                    <div class="text-center mb-3">
+                        <h2 class="mb-0">
+                            <span id="ownedCount">{{ stats.owned }}</span> / {{ stats.total }}
+                        </h2>
+                        <p class="text-muted">已收集 / 总数</p>
+                    </div>
+                    
+                    <div class="progress mb-3">
+                        <div class="progress-bar bg-success" role="progressbar" 
+                             style="width: {{ stats.percentage }}%" 
+                             id="progressBar">
+                            {{ stats.percentage }}%
+                        </div>
+                    </div>
+
+                    <h6 class="mb-2">按职业分布</h6>
+                    <div id="roleStats">
+                        {% for role, data in stats.byRole.items() %}
+                        <div class="d-flex justify-content-between mb-1">
+                            <span>{{ role }}</span>
+                            <span>{{ data.owned }} / {{ data.total }}</span>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// 切换英雄拥有状态
+async function toggleHero(heroName, element) {
+    const isOwned = element.classList.contains('owned');
+    
+    try {
+        const formData = new FormData();
+        formData.append('heroName', heroName);
+        formData.append('owned', !isOwned);
+        
+        const response = await fetch('{{ url_for("main.update_hero", region_id=region.id) }}', {
+            method: 'POST',
+            body: formData
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            element.classList.toggle('owned');
+            element.style.borderColor = '';
+            element.style.backgroundColor = '';
+            updateStats(data.stats);
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        alert('操作失败，请重试');
+    }
+}
+
+// 更新统计信息
+function updateStats(stats) {
+    document.getElementById('ownedCount').textContent = stats.owned;
+    document.getElementById('progressBar').style.width = stats.percentage + '%';
+    document.getElementById('progressBar').textContent = stats.percentage + '%';
+    
+    // 更新职业分布
+    const roleStatsHtml = Object.entries(stats.byRole).map(([role, data]) => {
+        return `
+            <div class="d-flex justify-content-between mb-1">
+                <span>${role}</span>
+                <span>${data.owned} / ${data.total}</span>
+            </div>
+        `;
+    }).join('');
+    document.getElementById('roleStats').innerHTML = roleStatsHtml;
+}
+
+// 搜索功能
+document.getElementById('searchInput').addEventListener('input', function(e) {
+    const query = e.target.value.toLowerCase();
+    document.querySelectorAll('.hero-item').forEach(item => {
+        const name = item.dataset.name.toLowerCase();
+        item.style.display = name.includes(query) ? '' : 'none';
+    });
+});
+
+// 职业筛选
+document.querySelectorAll('.role-filter .btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+        document.querySelectorAll('.role-filter .btn').forEach(b => b.classList.remove('active'));
+        this.classList.add('active');
+        
+        const role = this.dataset.role;
+        document.querySelectorAll('.hero-item').forEach(item => {
+            item.style.display = (role === 'all' || item.dataset.role.includes(role)) ? '' : 'none';
+        });
+        updateSelectedCount();
+    });
+});
+
+// 多选模式
+let isMultiSelectMode = false;
+let tempSelection = new Set();
+let isDragging = false;
+let dragHandlersAttached = false;
+let dragStartHandler, dragMoveHandler, dragEndHandler;
+
+function getVisibleHeroes() {
+    return Array.from(document.querySelectorAll('.hero-item')).filter(item => item.style.display !== 'none');
+}
+
+function enterMultiSelectMode(initialHero = null) {
+    isMultiSelectMode = true;
+    tempSelection.clear();
+    
+    document.querySelectorAll('.hero-card.owned').forEach(card => {
+        tempSelection.add(card.closest('.hero-item').dataset.name);
+    });
+    
+    if (initialHero) toggleTempSelection(initialHero);
+    
+    document.getElementById('batchActions').style.display = 'block';
+    document.getElementById('normalActions').style.display = 'none';
+    
+    enableDragSelection();
+    updateMultiSelectUI();
+}
+
+function cancelBatchSelection() {
+    isMultiSelectMode = false;
+    tempSelection.clear();
+    document.getElementById('batchActions').style.display = 'none';
+    document.getElementById('normalActions').style.display = 'block';
+    disableDragSelection();
+    restoreOriginalState();
+}
+
+function restoreOriginalState() {
+    document.querySelectorAll('.hero-card').forEach(card => {
+        card.classList.remove('selected-temp', 'drag-highlight');
+        card.style.borderColor = '';
+        card.style.backgroundColor = '';
+        
+        const isOwned = card.classList.contains('owned');
+        if (isOwned) {
+            card.style.borderColor = '#28a745';
+            card.style.backgroundColor = '#f8fff8';
+        }
+    });
+    updateSelectedCount();
+}
+
+function enableDragSelection() {
+    if (dragHandlersAttached) return;
+    
+    const heroGrid = document.getElementById('heroGrid');
+    let startX, startY, selectionBox;
+    
+    dragStartHandler = function(e) {
+        if (!isMultiSelectMode || e.target.closest('.hero-card')) return;
+        e.preventDefault();
+        isDragging = true;
+        
+        selectionBox = document.createElement('div');
+        selectionBox.className = 'selection-box';
+        selectionBox.style.cssText = 'position: fixed; border: 2px dashed #0d6efd; background: rgba(13, 110, 253, 0.1); pointer-events: none; z-index: 1000;';
+        document.body.appendChild(selectionBox);
+        
+        startX = e.type.includes('touch') ? e.touches[0].clientX : e.clientX;
+        startY = e.type.includes('touch') ? e.touches[0].clientY : e.clientY;
+        
+        updateSelectionBox(startX, startY, startX, startY);
+        
+        document.addEventListener('mousemove', dragMoveHandler);
+        document.addEventListener('mouseup', dragEndHandler);
+    };
+    
+    dragMoveHandler = function(e) {
+        if (!isDragging || !selectionBox) return;
+        e.preventDefault();
+        const currentX = e.type.includes('touch') ? e.touches[0].clientX : e.clientX;
+        const currentY = e.type.includes('touch') ? e.touches[0].clientY : e.clientY;
+        
+        updateSelectionBox(startX, startY, currentX, currentY);
+        highlightSelectedHeroes(startX, startY, currentX, currentY);
+    };
+    
+    dragEndHandler = function(e) {
+        if (!isDragging) return;
+        isDragging = false;
+        
+        if (selectionBox) {
+            const endX = e.type.includes('touch') ? e.changedTouches[0].clientX : e.clientX;
+            const endY = e.type.includes('touch') ? e.changedTouches[0].clientY : e.clientY;
+            applySelection(startX, startY, endX, endY);
+            selectionBox.remove();
+            selectionBox = null;
+        }
+        
+        document.removeEventListener('mousemove', dragMoveHandler);
+        document.removeEventListener('mouseup', dragEndHandler);
+    };
+    
+    function updateSelectionBox(x1, y1, x2, y2) {
+        selectionBox.style.left = Math.min(x1, x2) + 'px';
+        selectionBox.style.top = Math.min(y1, y2) + 'px';
+        selectionBox.style.width = Math.abs(x2 - x1) + 'px';
+        selectionBox.style.height = Math.abs(y2 - y1) + 'px';
+    }
+    
+    function highlightSelectedHeroes(x1, y1, x2, y2) {
+        const left = Math.min(x1, x2), top = Math.min(y1, y2);
+        const right = Math.max(x1, x2), bottom = Math.max(y1, y2);
+        
+        document.querySelectorAll('.hero-item').forEach(item => {
+            if (item.style.display === 'none') return;
+            const rect = item.getBoundingClientRect();
+            const itemCenterX = rect.left + rect.width / 2;
+            const itemCenterY = rect.top + rect.height / 2;
+            
+            if (itemCenterX >= left && itemCenterX <= right && itemCenterY >= top && itemCenterY <= bottom) {
+                item.querySelector('.hero-card').classList.add('drag-highlight');
+            } else {
+                item.querySelector('.hero-card').classList.remove('drag-highlight');
+            }
+        });
+    }
+    
+    function applySelection(x1, y1, x2, y2) {
+        const left = Math.min(x1, x2), top = Math.min(y1, y2);
+        const right = Math.max(x1, x2), bottom = Math.max(y1, y2);
+        
+        document.querySelectorAll('.hero-item').forEach(item => {
+            if (item.style.display === 'none') return;
+            const rect = item.getBoundingClientRect();
+            const itemCenterX = rect.left + rect.width / 2;
+            const itemCenterY = rect.top + rect.height / 2;
+            
+            if (itemCenterX >= left && itemCenterX <= right && itemCenterY >= top && itemCenterY <= bottom) {
+                const name = item.dataset.name;
+                if (tempSelection.has(name)) tempSelection.delete(name);
+                else tempSelection.add(name);
+            }
+            item.querySelector('.hero-card').classList.remove('drag-highlight');
+        });
+        
+        updateMultiSelectUI();
+    }
+    
+    heroGrid.addEventListener('mousedown', dragStartHandler);
+    dragHandlersAttached = true;
+}
+
+function disableDragSelection() {
+    if (!dragHandlersAttached) return;
+    document.getElementById('heroGrid').removeEventListener('mousedown', dragStartHandler);
+    dragHandlersAttached = false;
+}
+
+function toggleTempSelection(heroName) {
+    if (tempSelection.has(heroName)) tempSelection.delete(heroName);
+    else tempSelection.add(heroName);
+    updateMultiSelectUI();
+}
+
+function updateMultiSelectUI() {
+    document.querySelectorAll('.hero-item').forEach(item => {
+        const heroName = item.dataset.name;
+        const card = item.querySelector('.hero-card');
+        
+        if (isMultiSelectMode) {
+            if (tempSelection.has(heroName)) {
+                card.classList.add('selected-temp');
+                card.style.borderColor = '#0d6efd';
+                card.style.backgroundColor = '#e7f1ff';
+            } else {
+                card.classList.remove('selected-temp');
+                if (card.classList.contains('owned')) {
+                    card.style.borderColor = '#28a745';
+                    card.style.backgroundColor = '#f8fff8';
+                } else {
+                    card.style.borderColor = '';
+                    card.style.backgroundColor = '';
+                }
+            }
+        } else {
+            card.classList.remove('selected-temp');
+            if (card.classList.contains('owned')) {
+                card.style.borderColor = '#28a745';
+                card.style.backgroundColor = '#f8fff8';
+            } else {
+                card.style.borderColor = '';
+                card.style.backgroundColor = '';
+            }
+        }
+    });
+    updateSelectedCount();
+}
+
+function batchSelect(select) {
+    getVisibleHeroes().forEach(item => {
+        const heroName = item.dataset.name;
+        if (select) tempSelection.add(heroName);
+        else tempSelection.delete(heroName);
+    });
+    updateMultiSelectUI();
+}
+
+async function confirmBatchSelection() {
+    const heroesToAdd = [];
+    const heroesToRemove = [];
+    
+    document.querySelectorAll('.hero-item').forEach(item => {
+        const heroName = item.dataset.name;
+        const isOwned = item.querySelector('.hero-card').classList.contains('owned');
+        const isSelected = tempSelection.has(heroName);
+        
+        if (isSelected && !isOwned) heroesToAdd.push(heroName);
+        else if (!isSelected && isOwned) heroesToRemove.push(heroName);
+    });
+    
+    if (heroesToAdd.length > 0) await batchUpdateHeroes(heroesToAdd, true);
+    if (heroesToRemove.length > 0) await batchUpdateHeroes(heroesToRemove, false);
+    
+    cancelBatchSelection();
+    if (heroesToAdd.length > 0 || heroesToRemove.length > 0) {
+        alert(`已更新 ${heroesToAdd.length + heroesToRemove.length} 个英雄`);
+    }
+}
+
+async function batchUpdateHeroes(heroNames, owned) {
+    try {
+        const response = await fetch('{{ url_for("main.batch_update_heroes", region_id=region.id) }}', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ heroNames, owned })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            heroNames.forEach(name => {
+                const item = document.querySelector(`[data-name="${name}"]`);
+                if (item) {
+                    const card = item.querySelector('.hero-card');
+                    if (owned) card.classList.add('owned');
+                    else card.classList.remove('owned');
+                }
+            });
+            updateStats(data.stats);
+            updateSelectedCount();
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        alert('批量操作失败，请重试');
+    }
+}
+
+function updateSelectedCount() {
+    const count = isMultiSelectMode ? tempSelection.size : 
+        getVisibleHeroes().filter(item => item.querySelector('.hero-card').classList.contains('owned')).length;
+    document.getElementById('selectedCount').textContent = `已选择: ${count}`;
+}
+
+// 初始化
+document.getElementById('heroGrid').addEventListener('click', function(e) {
+    const card = e.target.closest('.hero-card');
+    if (!card || isDragging) return;
+    
+    const heroName = card.closest('.hero-item').dataset.name;
+    if (isMultiSelectMode) toggleTempSelection(heroName);
+    else toggleHero(heroName, card);
+});
+
+updateSelectedCount();
+</script>
+{% endblock %}

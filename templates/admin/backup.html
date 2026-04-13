@@ -1,0 +1,265 @@
+{% extends 'base.html' %}
+
+{% block title %}备份管理 - 管理后台 - 王者荣耀英雄统计{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h2 class="mb-4">备份管理</h2>
+    
+    <div class="row mb-4">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">备份操作</h5>
+                </div>
+                <div class="card-body">
+                    <div class="d-grid gap-2">
+                        <button class="btn btn-primary" onclick="createBackup()">
+                            <i class="bi bi-plus-lg"></i> 创建备份
+                        </button>
+                        <button class="btn btn-success" onclick="exportBackup()">
+                            <i class="bi bi-download"></i> 导出备份文件
+                        </button>
+                        <button class="btn btn-info" onclick="document.getElementById('importFile').click()">
+                            <i class="bi bi-upload"></i> 导入备份
+                        </button>
+                        <input type="file" id="importFile" accept=".json" style="display: none;" onchange="importBackup(this)">
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">导入说明</h5>
+                </div>
+                <div class="card-body">
+                    <ul class="mb-0">
+                        <li>支持导入从本系统导出的JSON备份文件</li>
+                        <li>合并模式：跳过已存在的英雄，添加新英雄</li>
+                        <li>覆盖模式：清空现有数据后导入，保留用户拥有记录</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <h4 class="mb-3">备份历史</h4>
+    <div class="card">
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-striped">
+                    <thead>
+                        <tr>
+                            <th>文件名</th>
+                            <th>大小</th>
+                            <th>类型</th>
+                            <th>描述</th>
+                            <th>创建时间</th>
+                            <th>操作</th>
+                        </tr>
+                    </thead>
+                    <tbody id="backupTable">
+                        <!-- 动态加载 -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 导入确认模态框 -->
+<div class="modal fade" id="importModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">导入备份</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>请选择导入模式：</p>
+                <div class="form-check">
+                    <input class="form-check-input" type="radio" name="importMode" id="modeMerge" value="merge" checked>
+                    <label class="form-check-label" for="modeMerge">
+                        <strong>合并模式</strong> - 保留现有数据，添加新英雄
+                    </label>
+                </div>
+                <div class="form-check">
+                    <input class="form-check-input" type="radio" name="importMode" id="modeOverwrite" value="overwrite">
+                    <label class="form-check-label" for="modeOverwrite">
+                        <strong>覆盖模式</strong> - 清空现有数据后导入（保留用户拥有记录）
+                    </label>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" onclick="confirmImport()">确认导入</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let importModal;
+let importData = null;
+
+document.addEventListener('DOMContentLoaded', function() {
+    importModal = new bootstrap.Modal(document.getElementById('importModal'));
+    loadBackups();
+});
+
+async function loadBackups() {
+    try {
+        const response = await fetch('/api/admin/backup/list');
+        const data = await response.json();
+        
+        if (data.success) {
+            renderBackups(data.backups);
+        }
+    } catch (error) {
+        console.error('Error:', error);
+    }
+}
+
+function renderBackups(backups) {
+    const tbody = document.getElementById('backupTable');
+    if (backups.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted">暂无备份记录</td></tr>';
+        return;
+    }
+    
+    tbody.innerHTML = backups.map(backup => `
+        <tr>
+            <td>${backup.filename}</td>
+            <td>${backup.file_size_formatted}</td>
+            <td><span class="badge bg-${backup.backup_type === 'manual' ? 'primary' : 'secondary'}">${backup.backup_type === 'manual' ? '手动' : '自动'}</span></td>
+            <td>${backup.description || '-'}</td>
+            <td>${backup.created_at_formatted}</td>
+            <td>
+                <button class="btn btn-sm btn-outline-primary" onclick="downloadBackup(${backup.id})">下载</button>
+                <button class="btn btn-sm btn-outline-success" onclick="restoreBackup(${backup.id})">恢复</button>
+                <button class="btn btn-sm btn-outline-danger" onclick="deleteBackup(${backup.id})">删除</button>
+            </td>
+        </tr>
+    `).join('');
+}
+
+async function createBackup() {
+    try {
+        const response = await fetch('/api/admin/backup/create', {
+            method: 'POST'
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            alert('备份创建成功');
+            loadBackups();
+        } else {
+            alert(data.error || '创建失败');
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        alert('创建失败，请重试');
+    }
+}
+
+function exportBackup() {
+    window.location.href = '/api/admin/backup/export';
+}
+
+function importBackup(input) {
+    const file = input.files[0];
+    if (!file) return;
+    
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        try {
+            importData = JSON.parse(e.target.result);
+            importModal.show();
+        } catch (error) {
+            alert('文件格式错误');
+        }
+    };
+    reader.readAsText(file);
+    input.value = '';
+}
+
+async function confirmImport() {
+    if (!importData) return;
+    
+    const mode = document.querySelector('input[name="importMode"]:checked').value;
+    
+    try {
+        const response = await fetch('/api/admin/backup/import', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ data: importData, mode: mode })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            alert(data.message);
+            importModal.hide();
+            loadBackups();
+        } else {
+            alert(data.error || '导入失败');
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        alert('导入失败，请重试');
+    }
+}
+
+function downloadBackup(id) {
+    window.location.href = `/api/admin/backup/download/${id}`;
+}
+
+async function restoreBackup(id) {
+    if (!confirm('确定要从这个备份恢复数据吗？现有数据将被替换。')) return;
+    
+    try {
+        const response = await fetch(`/api/admin/backup/restore/${id}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ mode: 'overwrite' })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            alert(data.message);
+        } else {
+            alert(data.error || '恢复失败');
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        alert('恢复失败，请重试');
+    }
+}
+
+async function deleteBackup(id) {
+    if (!confirm('确定要删除这个备份吗？')) return;
+    
+    try {
+        const response = await fetch(`/api/admin/backup/${id}`, {
+            method: 'DELETE'
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            loadBackups();
+        } else {
+            alert(data.error || '删除失败');
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        alert('删除失败，请重试');
+    }
+}
+</script>
+{% endblock %}
