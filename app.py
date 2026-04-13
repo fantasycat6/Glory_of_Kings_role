@@ -71,8 +71,9 @@ def create_app(config_name=None):
 
 if __name__ == '__main__':
     app = create_app()
-    port = int(os.environ.get('PORT', 5000))
-    debug = os.environ.get('FLASK_DEBUG', 'true').lower() == 'true'
+    # 从 app.config 读取配置，确保 .env 文件被加载
+    port = app.config.get('PORT', 5000)
+    debug = app.config.get('FLASK_DEBUG', True)
     
     print(f"\n{'='*50}")
     print(f"  王者荣耀英雄统计网站")

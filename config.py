@@ -2,6 +2,10 @@
 配置文件 - 王者荣耀英雄统计网站
 """
 import os
+from dotenv import load_dotenv
+
+# 加载 .env 文件
+load_dotenv()
 
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 
@@ -12,6 +16,9 @@ class Config:
     
     # 服务器配置
     PORT = int(os.environ.get('PORT', 5000))
+    
+    # 调试模式
+    FLASK_DEBUG = os.environ.get('FLASK_DEBUG', 'true').lower() == 'true'
     
     # 数据库配置（SQLite）
     SQLITE_PATH = os.environ.get('SQLITE_PATH', os.path.join(BASE_DIR, 'data', 'wzry.db'))
