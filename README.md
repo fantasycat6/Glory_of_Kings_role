@@ -59,6 +59,7 @@ cp .env.example .env
 | `SECRET_KEY` | Flask 安全密钥（**生产环境必须修改**） | `wzry-secret-key-2026` |
 | `FLASK_ENV` | 运行环境：`development` 或 `production` | `development` |
 | `FLASK_DEBUG` | 调试模式：`true` 或 `false` | `true` |
+| `PORT` | 服务器运行端口 | `5000` |
 | `SQLITE_PATH` | SQLite 数据库路径 | `data/wzry.db` |
 
 4. **启动服务**

@@ -10,6 +10,9 @@ class Config:
     SECRET_KEY = os.environ.get('SECRET_KEY') or 'wzry-secret-key-2026'
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     
+    # 服务器配置
+    PORT = int(os.environ.get('PORT', 5000))
+    
     # 数据库配置（SQLite）
     SQLITE_PATH = os.environ.get('SQLITE_PATH', os.path.join(BASE_DIR, 'data', 'wzry.db'))
     SQLALCHEMY_DATABASE_URI = f'sqlite:///{SQLITE_PATH}'
