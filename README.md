@@ -44,7 +44,24 @@ cd Glory_of_Kings_role
 pip install -r requirements.txt
 ```
 
-3. **启动服务**
+3. **配置环境变量（可选）**
+```bash
+# 复制环境变量示例文件
+cp .env.example .env
+
+# 编辑 .env 文件，根据需要修改配置
+# 生产环境请务必修改 SECRET_KEY
+```
+
+配置文件说明：
+| 变量名 | 说明 | 默认值 |
+|--------|------|--------|
+| `SECRET_KEY` | Flask 安全密钥（**生产环境必须修改**） | `wzry-secret-key-2026` |
+| `FLASK_ENV` | 运行环境：`development` 或 `production` | `development` |
+| `FLASK_DEBUG` | 调试模式：`true` 或 `false` | `true` |
+| `SQLITE_PATH` | SQLite 数据库路径 | `data/wzry.db` |
+
+4. **启动服务**
 ```bash
 # 生产模式
 python app.py
