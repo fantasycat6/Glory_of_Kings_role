@@ -211,12 +211,12 @@ pm2 startup
 
 ### Docker 部署（可选）
 ```dockerfile
-FROM node:18-alpine
+FROM node:20-bookworm-slim
 WORKDIR /app
 COPY package*.json ./
 RUN npm install --production
 COPY . .
-EXPOSE 3000
+EXPOSE 5020
 CMD ["node", "app.js"]
 ```
 
