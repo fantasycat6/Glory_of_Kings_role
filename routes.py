@@ -4,6 +4,7 @@
 from flask import Blueprint, render_template, redirect, url_for, request, flash, jsonify, abort
 from flask_login import login_required, current_user
 from models import db, User, Account, Region, Hero, HeroOwnership, get_hero_images
+from pypinyin import lazy_pinyin
 
 main_bp = Blueprint('main', __name__)
 
@@ -22,7 +23,7 @@ def index():
 @login_required
 def dashboard():
     """我的账号页面"""
-    accounts = Account.query.filter_by(user_id=current_user.id).all()
+    accounts = Account.query.filter_by(user_id=current_user.id).order_by(Account.sort_order).all()
     return render_template('dashboard.html', accounts=accounts)
 
 
@@ -70,6 +71,41 @@ def delete_account(account_id):
     return redirect(url_for('main.dashboard'))
 
 
+@main_bp.route('/api/accounts/<int:account_id>', methods=['PUT'])
+@login_required
+def update_account(account_id):
+    """编辑账号"""
+    account = Account.query.get_or_404(account_id)
+    
+    if account.user_id != current_user.id:
+        return jsonify({'error': '无权操作'}), 403
+    
+    data = request.get_json()
+    account.name = data.get('name', account.name).strip()
+    account.login_type = data.get('loginType', account.login_type)
+    account.platform = data.get('platform', account.platform)
+    
+    db.session.commit()
+    
+    return jsonify({'success': True, 'account': account.to_dict()})
+
+
+@main_bp.route('/api/accounts/reorder', methods=['POST'])
+@login_required
+def reorder_accounts():
+    """更新账号排序"""
+    data = request.get_json()
+    account_ids = data.get('accountIds', [])
+    
+    for index, account_id in enumerate(account_ids):
+        account = Account.query.get(account_id)
+        if account and account.user_id == current_user.id:
+            account.sort_order = index
+    
+    db.session.commit()
+    return jsonify({'success': True})
+
+
 # ==================== 区服管理 ====================
 
 @main_bp.route('/accounts/<int:account_id>')
@@ -81,7 +117,7 @@ def account_detail(account_id):
     if account.user_id != current_user.id:
         abort(403)
     
-    regions = Region.query.filter_by(account_id=account_id).all()
+    regions = Region.query.filter_by(account_id=account_id).order_by(Region.sort_order).all()
     return render_template('account_detail.html', account=account, regions=regions)
 
 
@@ -141,6 +177,45 @@ def delete_region(region_id):
     return redirect(url_for('main.account_detail', account_id=account.id))
 
 
+@main_bp.route('/api/regions/<int:region_id>', methods=['PUT'])
+@login_required
+def update_region(region_id):
+    """编辑区服"""
+    region = Region.query.get_or_404(region_id)
+    account = Account.query.get(region.account_id)
+    
+    if account.user_id != current_user.id:
+        return jsonify({'error': '无权操作'}), 403
+    
+    data = request.get_json()
+    region.name = data.get('name', region.name).strip()
+    
+    db.session.commit()
+    
+    return jsonify({'success': True, 'region': region.to_dict()})
+
+
+@main_bp.route('/api/accounts/<int:account_id>/regions/reorder', methods=['POST'])
+@login_required
+def reorder_regions(account_id):
+    """更新区服排序"""
+    account = Account.query.get_or_404(account_id)
+    
+    if account.user_id != current_user.id:
+        return jsonify({'error': '无权操作'}), 403
+    
+    data = request.get_json()
+    region_ids = data.get('regionIds', [])
+    
+    for index, region_id in enumerate(region_ids):
+        region = Region.query.get(region_id)
+        if region and region.account_id == account_id:
+            region.sort_order = index
+    
+    db.session.commit()
+    return jsonify({'success': True})
+
+
 # ==================== 英雄管理 ====================
 
 @main_bp.route('/regions/<int:region_id>/heroes')
@@ -153,8 +228,18 @@ def heroes(region_id):
     if account.user_id != current_user.id:
         abort(403)
     
-    heroes = Hero.get_sorted_by_name()
+    # 获取所有英雄和已拥有的英雄
+    all_heroes = Hero.query.all()
     owned_hero_names = HeroOwnership.get_owned_heroes(account.id, region.id)
+    
+    # 按拼音排序，已拥有的排在前面
+    def sort_key(hero):
+        pinyin = lazy_pinyin(hero.name)
+        is_owned = hero.name in owned_hero_names
+        # 已拥有的排在前面（0在前，1在后），然后按拼音排序
+        return (0 if is_owned else 1, pinyin)
+    
+    heroes = sorted(all_heroes, key=sort_key)
     stats = HeroOwnership.get_stats(account.id, region.id)
     hero_images = get_hero_images()
     

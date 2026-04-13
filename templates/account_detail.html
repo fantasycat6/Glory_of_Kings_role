@@ -2,6 +2,35 @@
 
 {% block title %}{{ account.name }} - 王者荣耀英雄统计{% endblock %}
 
+{% block extra_css %}
+<style>
+    .region-card {
+        cursor: grab;
+        transition: all 0.2s;
+    }
+    .region-card:active {
+        cursor: grabbing;
+    }
+    .region-card.dragging {
+        opacity: 0.5;
+        transform: scale(1.02);
+        box-shadow: 0 8px 16px rgba(0,0,0,0.2);
+    }
+    .region-card.drag-over {
+        border: 2px dashed #0d6efd;
+        background-color: #e7f1ff;
+    }
+    .drag-handle {
+        cursor: grab;
+        color: #6c757d;
+        font-size: 1.2rem;
+    }
+    .drag-handle:active {
+        cursor: grabbing;
+    }
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="container mt-4">
     <div class="d-flex justify-content-between align-items-center mb-4">
@@ -40,16 +69,27 @@
             <i class="bi bi-info-circle"></i> 还没有添加区服，在上方添加区服开始管理英雄
         </div>
     {% else %}
-        <div class="row">
+        <div class="alert alert-light mb-3">
+            <i class="bi bi-info-circle"></i> <small>长按拖动卡片可调整顺序，点击"编辑"修改区服名称</small>
+        </div>
+        <div class="row" id="regionList">
             {% for region in regions %}
-            <div class="col-md-6 col-lg-4 mb-3">
-                <div class="card">
+            <div class="col-md-6 col-lg-4 mb-3 region-item" data-region-id="{{ region.id }}">
+                <div class="card region-card" draggable="true">
                     <div class="card-body">
-                        <h5 class="card-title">{{ region.name }}</h5>
-                        <div class="d-flex gap-2 mt-3">
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <div class="d-flex align-items-center gap-2">
+                                <i class="bi bi-grip-vertical drag-handle"></i>
+                                <h5 class="card-title mb-0 region-name">{{ region.name }}</h5>
+                            </div>
+                        </div>
+                        <div class="d-flex gap-2">
                             <a href="{{ url_for('main.heroes', region_id=region.id) }}" class="btn btn-primary btn-sm flex-fill">
                                 管理英雄
                             </a>
+                            <button type="button" class="btn btn-outline-secondary btn-sm" onclick="editRegion({{ region.id }}, '{{ region.name }}')">
+                                编辑
+                            </button>
                             <form method="POST" action="{{ url_for('main.delete_region', region_id=region.id) }}" class="d-inline" onsubmit="return confirm('确定要删除这个区服吗？所有英雄数据也会被删除。')">
                                 <button type="submit" class="btn btn-outline-danger btn-sm">删除</button>
                             </form>
@@ -61,4 +101,235 @@
         </div>
     {% endif %}
 </div>
+
+<!-- 编辑区服模态框 -->
+<div class="modal fade" id="editRegionModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">编辑区服</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="editRegionForm">
+                    <input type="hidden" id="editRegionId">
+                    <div class="mb-3">
+                        <label for="editRegionName" class="form-label">区服名称</label>
+                        <input type="text" class="form-control" id="editRegionName" required>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" onclick="saveRegionEdit()">保存</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let draggedElement = null;
+let longPressTimer = null;
+let isDragging = false;
+let startX, startY;
+const LONG_PRESS_DURATION = 500;
+
+// 初始化拖拽
+function initDragAndDrop() {
+    const regionList = document.getElementById('regionList');
+    if (!regionList) return;
+
+    const cards = regionList.querySelectorAll('.region-card');
+    
+    cards.forEach(card => {
+        card.addEventListener('mousedown', handleDragStart);
+        card.addEventListener('touchstart', handleDragStart, { passive: false });
+        
+        card.addEventListener('dragstart', handleDragStartNative);
+        card.addEventListener('dragend', handleDragEnd);
+        card.addEventListener('dragover', handleDragOver);
+        card.addEventListener('drop', handleDrop);
+        card.addEventListener('dragenter', handleDragEnter);
+        card.addEventListener('dragleave', handleDragLeave);
+    });
+}
+
+function handleDragStart(e) {
+    if (e.target.closest('a') || e.target.closest('button') || e.target.closest('form')) {
+        return;
+    }
+
+    const card = e.currentTarget;
+    startX = e.type.includes('touch') ? e.touches[0].clientX : e.clientX;
+    startY = e.type.includes('touch') ? e.touches[0].clientY : e.clientY;
+
+    longPressTimer = setTimeout(() => {
+        isDragging = true;
+        card.setAttribute('draggable', 'true');
+        card.classList.add('dragging');
+        
+        if (navigator.vibrate) {
+            navigator.vibrate(50);
+        }
+    }, LONG_PRESS_DURATION);
+
+    const moveHandler = (e) => {
+        const currentX = e.type.includes('touch') ? e.touches[0].clientX : e.clientX;
+        const currentY = e.type.includes('touch') ? e.touches[0].clientY : e.clientY;
+        
+        if (Math.abs(currentX - startX) > 10 || Math.abs(currentY - startY) > 10) {
+            clearTimeout(longPressTimer);
+        }
+    };
+
+    const endHandler = () => {
+        clearTimeout(longPressTimer);
+        if (!isDragging) {
+            card.setAttribute('draggable', 'false');
+        }
+        document.removeEventListener('mousemove', moveHandler);
+        document.removeEventListener('mouseup', endHandler);
+        document.removeEventListener('touchmove', moveHandler);
+        document.removeEventListener('touchend', endHandler);
+    };
+
+    document.addEventListener('mousemove', moveHandler);
+    document.addEventListener('mouseup', endHandler);
+    document.addEventListener('touchmove', moveHandler, { passive: true });
+    document.addEventListener('touchend', endHandler);
+}
+
+function handleDragStartNative(e) {
+    draggedElement = e.currentTarget.closest('.region-item');
+    e.currentTarget.classList.add('dragging');
+    e.dataTransfer.effectAllowed = 'move';
+}
+
+function handleDragEnd(e) {
+    e.currentTarget.classList.remove('dragging');
+    document.querySelectorAll('.region-card').forEach(card => {
+        card.classList.remove('drag-over');
+    });
+    isDragging = false;
+    
+    saveOrder();
+}
+
+function handleDragOver(e) {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+}
+
+function handleDragEnter(e) {
+    e.preventDefault();
+    const card = e.currentTarget.closest('.region-card');
+    if (card && card !== draggedElement?.querySelector('.region-card')) {
+        card.classList.add('drag-over');
+    }
+}
+
+function handleDragLeave(e) {
+    const card = e.currentTarget.closest('.region-card');
+    if (card) {
+        card.classList.remove('drag-over');
+    }
+}
+
+function handleDrop(e) {
+    e.preventDefault();
+    const card = e.currentTarget.closest('.region-card');
+    if (!card || !draggedElement) return;
+
+    const dropTarget = card.closest('.region-item');
+    if (dropTarget === draggedElement) return;
+
+    const regionList = document.getElementById('regionList');
+    const items = Array.from(regionList.querySelectorAll('.region-item'));
+    const draggedIndex = items.indexOf(draggedElement);
+    const dropIndex = items.indexOf(dropTarget);
+
+    if (draggedIndex < dropIndex) {
+        dropTarget.after(draggedElement);
+    } else {
+        dropTarget.before(draggedElement);
+    }
+
+    card.classList.remove('drag-over');
+}
+
+// 保存排序到服务器
+async function saveOrder() {
+    const regionList = document.getElementById('regionList');
+    const regionIds = Array.from(regionList.querySelectorAll('.region-item'))
+        .map(item => parseInt(item.dataset.regionId));
+
+    try {
+        const response = await fetch('{{ url_for("main.reorder_regions", account_id=account.id) }}', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ regionIds })
+        });
+
+        const data = await response.json();
+        if (!data.success) {
+            console.error('保存排序失败');
+        }
+    } catch (error) {
+        console.error('Error:', error);
+    }
+}
+
+// 编辑区服
+let editModal = null;
+
+function editRegion(id, name) {
+    document.getElementById('editRegionId').value = id;
+    document.getElementById('editRegionName').value = name;
+
+    if (!editModal) {
+        editModal = new bootstrap.Modal(document.getElementById('editRegionModal'));
+    }
+    editModal.show();
+}
+
+async function saveRegionEdit() {
+    const id = document.getElementById('editRegionId').value;
+    const name = document.getElementById('editRegionName').value.trim();
+
+    if (!name) {
+        alert('区服名称不能为空');
+        return;
+    }
+
+    try {
+        const response = await fetch(`/api/regions/${id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name })
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            const regionItem = document.querySelector(`[data-region-id="${id}"]`);
+            regionItem.querySelector('.region-name').textContent = name;
+            
+            const editBtn = regionItem.querySelector('button[onclick^="editRegion"]');
+            editBtn.setAttribute('onclick', `editRegion(${id}, '${name}')`);
+
+            editModal.hide();
+        } else {
+            alert(data.error || '保存失败');
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        alert('保存失败，请重试');
+    }
+}
+
+// 初始化
+document.addEventListener('DOMContentLoaded', initDragAndDrop);
+</script>
 {% endblock %}

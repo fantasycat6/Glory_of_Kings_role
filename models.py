@@ -78,10 +78,11 @@ class Account(db.Model):
     name = db.Column(db.String(100), nullable=False)
     login_type = db.Column(db.String(20), default='qq')  # qq / wechat
     platform = db.Column(db.String(20), default='android')  # android / ios
+    sort_order = db.Column(db.Integer, default=0)  # 排序顺序
     created_at = db.Column(db.DateTime, default=datetime.now)
     
     # 关系
-    regions = db.relationship('Region', backref='account', lazy=True, cascade='all, delete-orphan')
+    regions = db.relationship('Region', backref='account', lazy=True, cascade='all, delete-orphan', order_by='Region.sort_order')
     hero_ownerships = db.relationship('HeroOwnership', backref='account', lazy=True, cascade='all, delete-orphan')
     
     def to_dict(self):
@@ -105,6 +106,7 @@ class Region(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     account_id = db.Column(db.Integer, db.ForeignKey('accounts.id'), nullable=False)
     name = db.Column(db.String(100), nullable=False)
+    sort_order = db.Column(db.Integer, default=0)  # 排序顺序
     created_at = db.Column(db.DateTime, default=datetime.now)
     
     # 关系

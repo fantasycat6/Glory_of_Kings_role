@@ -2,6 +2,35 @@
 
 {% block title %}我的账号 - 王者荣耀英雄统计{% endblock %}
 
+{% block extra_css %}
+<style>
+    .account-card {
+        cursor: grab;
+        transition: all 0.2s;
+    }
+    .account-card:active {
+        cursor: grabbing;
+    }
+    .account-card.dragging {
+        opacity: 0.5;
+        transform: scale(1.02);
+        box-shadow: 0 8px 16px rgba(0,0,0,0.2);
+    }
+    .account-card.drag-over {
+        border: 2px dashed #0d6efd;
+        background-color: #e7f1ff;
+    }
+    .drag-handle {
+        cursor: grab;
+        color: #6c757d;
+        font-size: 1.2rem;
+    }
+    .drag-handle:active {
+        cursor: grabbing;
+    }
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="container mt-4">
     <div class="d-flex justify-content-between align-items-center mb-4">
@@ -16,24 +45,33 @@
             <i class="bi bi-info-circle"></i> 还没有添加游戏账号，点击"添加账号"开始管理你的英雄
         </div>
     {% else %}
-        <div class="row">
+        <div class="alert alert-light mb-3">
+            <i class="bi bi-info-circle"></i> <small>长按拖动卡片可调整顺序，点击"编辑"修改账号信息</small>
+        </div>
+        <div class="row" id="accountList">
             {% for account in accounts %}
-            <div class="col-md-6 col-lg-4 mb-3">
-                <div class="card h-100">
+            <div class="col-md-6 col-lg-4 mb-3 account-item" data-account-id="{{ account.id }}">
+                <div class="card h-100 account-card" draggable="true">
                     <div class="card-body">
                         <div class="d-flex justify-content-between align-items-start mb-2">
-                            <h5 class="card-title mb-0">{{ account.name }}</h5>
-                            <span class="badge bg-{{ 'primary' if account.login_type == 'qq' else 'success' }}">
+                            <div class="d-flex align-items-center gap-2">
+                                <i class="bi bi-grip-vertical drag-handle"></i>
+                                <h5 class="card-title mb-0 account-name">{{ account.name }}</h5>
+                            </div>
+                            <span class="badge bg-{{ 'primary' if account.login_type == 'qq' else 'success' }} account-type">
                                 {{ 'QQ' if account.login_type == 'qq' else '微信' }}
                             </span>
                         </div>
-                        <p class="card-text text-muted mb-3">
+                        <p class="card-text text-muted mb-3 account-platform">
                             {{ '安卓' if account.platform == 'android' else '苹果' }}设备
                         </p>
                         <div class="d-flex gap-2">
                             <a href="{{ url_for('main.account_detail', account_id=account.id) }}" class="btn btn-primary btn-sm flex-fill">
                                 管理区服
                             </a>
+                            <button type="button" class="btn btn-outline-secondary btn-sm" onclick="editAccount({{ account.id }}, '{{ account.name }}', '{{ account.login_type }}', '{{ account.platform }}')">
+                                编辑
+                            </button>
                             <form method="POST" action="{{ url_for('main.delete_account', account_id=account.id) }}" class="d-inline" onsubmit="return confirm('确定要删除这个账号吗？所有区服数据也会被删除。')">
                                 <button type="submit" class="btn btn-outline-danger btn-sm">删除</button>
                             </form>
@@ -48,4 +86,266 @@
         </div>
     {% endif %}
 </div>
+
+<!-- 编辑账号模态框 -->
+<div class="modal fade" id="editAccountModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">编辑账号</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="editAccountForm">
+                    <input type="hidden" id="editAccountId">
+                    <div class="mb-3">
+                        <label for="editAccountName" class="form-label">账号名称</label>
+                        <input type="text" class="form-control" id="editAccountName" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="editLoginType" class="form-label">登录方式</label>
+                        <select class="form-select" id="editLoginType">
+                            <option value="qq">QQ</option>
+                            <option value="wechat">微信</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="editPlatform" class="form-label">设备类型</label>
+                        <select class="form-select" id="editPlatform">
+                            <option value="android">安卓</option>
+                            <option value="ios">苹果</option>
+                        </select>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" onclick="saveAccountEdit()">保存</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let draggedElement = null;
+let longPressTimer = null;
+let isDragging = false;
+let startX, startY;
+const LONG_PRESS_DURATION = 500; // 长按触发时间（毫秒）
+
+// 初始化拖拽
+function initDragAndDrop() {
+    const accountList = document.getElementById('accountList');
+    if (!accountList) return;
+
+    const cards = accountList.querySelectorAll('.account-card');
+    
+    cards.forEach(card => {
+        // 鼠标/触摸按下
+        card.addEventListener('mousedown', handleDragStart);
+        card.addEventListener('touchstart', handleDragStart, { passive: false });
+        
+        // 拖拽事件
+        card.addEventListener('dragstart', handleDragStartNative);
+        card.addEventListener('dragend', handleDragEnd);
+        card.addEventListener('dragover', handleDragOver);
+        card.addEventListener('drop', handleDrop);
+        card.addEventListener('dragenter', handleDragEnter);
+        card.addEventListener('dragleave', handleDragLeave);
+    });
+}
+
+function handleDragStart(e) {
+    // 如果点击的是按钮或链接，不触发拖拽
+    if (e.target.closest('a') || e.target.closest('button') || e.target.closest('form')) {
+        return;
+    }
+
+    const card = e.currentTarget;
+    startX = e.type.includes('touch') ? e.touches[0].clientX : e.clientX;
+    startY = e.type.includes('touch') ? e.touches[0].clientY : e.clientY;
+
+    longPressTimer = setTimeout(() => {
+        isDragging = true;
+        card.setAttribute('draggable', 'true');
+        card.classList.add('dragging');
+        
+        // 震动反馈（如果支持）
+        if (navigator.vibrate) {
+            navigator.vibrate(50);
+        }
+    }, LONG_PRESS_DURATION);
+
+    // 鼠标/触摸移动和释放
+    const moveHandler = (e) => {
+        const currentX = e.type.includes('touch') ? e.touches[0].clientX : e.clientX;
+        const currentY = e.type.includes('touch') ? e.touches[0].clientY : e.clientY;
+        
+        // 如果移动距离超过阈值，取消长按
+        if (Math.abs(currentX - startX) > 10 || Math.abs(currentY - startY) > 10) {
+            clearTimeout(longPressTimer);
+        }
+    };
+
+    const endHandler = () => {
+        clearTimeout(longPressTimer);
+        if (!isDragging) {
+            card.setAttribute('draggable', 'false');
+        }
+        document.removeEventListener('mousemove', moveHandler);
+        document.removeEventListener('mouseup', endHandler);
+        document.removeEventListener('touchmove', moveHandler);
+        document.removeEventListener('touchend', endHandler);
+    };
+
+    document.addEventListener('mousemove', moveHandler);
+    document.addEventListener('mouseup', endHandler);
+    document.addEventListener('touchmove', moveHandler, { passive: true });
+    document.addEventListener('touchend', endHandler);
+}
+
+function handleDragStartNative(e) {
+    draggedElement = e.currentTarget.closest('.account-item');
+    e.currentTarget.classList.add('dragging');
+    e.dataTransfer.effectAllowed = 'move';
+}
+
+function handleDragEnd(e) {
+    e.currentTarget.classList.remove('dragging');
+    document.querySelectorAll('.account-card').forEach(card => {
+        card.classList.remove('drag-over');
+    });
+    isDragging = false;
+    
+    // 保存排序
+    saveOrder();
+}
+
+function handleDragOver(e) {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+}
+
+function handleDragEnter(e) {
+    e.preventDefault();
+    const card = e.currentTarget.closest('.account-card');
+    if (card && card !== draggedElement?.querySelector('.account-card')) {
+        card.classList.add('drag-over');
+    }
+}
+
+function handleDragLeave(e) {
+    const card = e.currentTarget.closest('.account-card');
+    if (card) {
+        card.classList.remove('drag-over');
+    }
+}
+
+function handleDrop(e) {
+    e.preventDefault();
+    const card = e.currentTarget.closest('.account-card');
+    if (!card || !draggedElement) return;
+
+    const dropTarget = card.closest('.account-item');
+    if (dropTarget === draggedElement) return;
+
+    // 交换元素位置
+    const accountList = document.getElementById('accountList');
+    const items = Array.from(accountList.querySelectorAll('.account-item'));
+    const draggedIndex = items.indexOf(draggedElement);
+    const dropIndex = items.indexOf(dropTarget);
+
+    if (draggedIndex < dropIndex) {
+        dropTarget.after(draggedElement);
+    } else {
+        dropTarget.before(draggedElement);
+    }
+
+    card.classList.remove('drag-over');
+}
+
+// 保存排序到服务器
+async function saveOrder() {
+    const accountList = document.getElementById('accountList');
+    const accountIds = Array.from(accountList.querySelectorAll('.account-item'))
+        .map(item => parseInt(item.dataset.accountId));
+
+    try {
+        const response = await fetch('{{ url_for("main.reorder_accounts") }}', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ accountIds })
+        });
+
+        const data = await response.json();
+        if (!data.success) {
+            console.error('保存排序失败');
+        }
+    } catch (error) {
+        console.error('Error:', error);
+    }
+}
+
+// 编辑账号
+let editModal = null;
+
+function editAccount(id, name, loginType, platform) {
+    document.getElementById('editAccountId').value = id;
+    document.getElementById('editAccountName').value = name;
+    document.getElementById('editLoginType').value = loginType;
+    document.getElementById('editPlatform').value = platform;
+
+    if (!editModal) {
+        editModal = new bootstrap.Modal(document.getElementById('editAccountModal'));
+    }
+    editModal.show();
+}
+
+async function saveAccountEdit() {
+    const id = document.getElementById('editAccountId').value;
+    const name = document.getElementById('editAccountName').value.trim();
+    const loginType = document.getElementById('editLoginType').value;
+    const platform = document.getElementById('editPlatform').value;
+
+    if (!name) {
+        alert('账号名称不能为空');
+        return;
+    }
+
+    try {
+        const response = await fetch(`/api/accounts/${id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name, loginType, platform })
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            // 更新页面显示
+            const accountItem = document.querySelector(`[data-account-id="${id}"]`);
+            accountItem.querySelector('.account-name').textContent = name;
+            accountItem.querySelector('.account-type').textContent = loginType === 'qq' ? 'QQ' : '微信';
+            accountItem.querySelector('.account-type').className = `badge account-type bg-${loginType === 'qq' ? 'primary' : 'success'}`;
+            accountItem.querySelector('.account-platform').textContent = (platform === 'android' ? '安卓' : '苹果') + '设备';
+            
+            // 更新编辑按钮的onclick
+            const editBtn = accountItem.querySelector('button[onclick^="editAccount"]');
+            editBtn.setAttribute('onclick', `editAccount(${id}, '${name}', '${loginType}', '${platform}')`);
+
+            editModal.hide();
+        } else {
+            alert(data.error || '保存失败');
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        alert('保存失败，请重试');
+    }
+}
+
+// 初始化
+document.addEventListener('DOMContentLoaded', initDragAndDrop);
+</script>
 {% endblock %}
