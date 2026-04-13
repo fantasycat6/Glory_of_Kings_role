@@ -1,0 +1,731 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title><%= title %> - 管理员后台</title>
+  <!-- Favicon -->
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="alternate icon" href="/favicon.png">
+  <!-- Bootstrap CSS -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <!-- Bootstrap Icons -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
+  <!-- Custom CSS -->
+  <link rel="stylesheet" href="/css/style.css">
+  <style>
+    .hero-avatar {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      object-fit: cover;
+    }
+    .role-badge {
+      font-size: 0.85rem;
+    }
+    .pagination-input {
+      width: 60px;
+      text-align: center;
+    }
+    .filter-btn.active {
+      background-color: #0d6efd;
+      color: white;
+    }
+    .action-btns .btn {
+      padding: 0.25rem 0.5rem;
+      font-size: 0.875rem;
+    }
+    .role-filter-btn {
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .role-filter-btn:hover {
+      background-color: #0d6efd !important;
+      color: white !important;
+    }
+    .role-filter-btn.active {
+      background-color: #0d6efd !important;
+      color: white !important;
+    }
+    /* 跳转到输入框样式 */
+    .jump-to-container {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      margin-left: 10px;
+    }
+    .jump-to-container span {
+      white-space: nowrap;
+      font-size: 0.875rem;
+    }
+    .jump-to-container input {
+      width: 60px;
+      text-align: center;
+    }
+    /* 表格加载动画 */
+    .table-loading {
+      opacity: 0.6;
+      pointer-events: none;
+    }
+    /* 固定表格高度防止跳动 */
+    .table-container {
+      min-height: 500px;
+    }
+  </style>
+</head>
+<body>
+  <%- include('../partials/navbar') %>
+
+  <div class="container-fluid mt-4">
+    <div class="row">
+      <!-- 侧边栏 -->
+      <div class="col-md-2">
+        <div class="list-group">
+          <a href="/admin" class="list-group-item list-group-item-action">
+            <i class="bi bi-speedometer2 me-2"></i>概览
+          </a>
+          <a href="/admin/users" class="list-group-item list-group-item-action">
+            <i class="bi bi-people me-2"></i>用户管理
+          </a>
+          <a href="/admin/heroes" class="list-group-item list-group-item-action active">
+            <i class="bi bi-person-badge me-2"></i>英雄管理
+          </a>
+          <a href="/admin/backup" class="list-group-item list-group-item-action">
+            <i class="bi bi-database me-2"></i>数据备份
+          </a>
+        </div>
+      </div>
+      
+      <!-- 主内容 -->
+      <div class="col-md-10">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+          <h3>英雄管理</h3>
+          <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addHeroModal">
+            <i class="bi bi-plus-lg"></i> 添加英雄
+          </button>
+        </div>
+
+        <!-- 统计卡片 -->
+        <div class="row mb-4" id="roleStatsContainer">
+          <!-- 动态加载 -->
+        </div>
+
+        <!-- 筛选和搜索 -->
+        <div class="card mb-4">
+          <div class="card-body">
+            <div class="row align-items-center">
+              <div class="col-md-8 mb-2 mb-md-0">
+                <div class="d-flex flex-wrap gap-2">
+                  <div class="btn-group flex-wrap" role="group" id="roleFilterGroup">
+                    <button class="btn btn-outline-primary filter-btn" data-role="all">全部</button>
+                    <button class="btn btn-outline-primary filter-btn" data-role="坦克">坦克</button>
+                    <button class="btn btn-outline-primary filter-btn" data-role="战士">战士</button>
+                    <button class="btn btn-outline-primary filter-btn" data-role="刺客">刺客</button>
+                    <button class="btn btn-outline-primary filter-btn" data-role="法师">法师</button>
+                    <button class="btn btn-outline-primary filter-btn" data-role="射手">射手</button>
+                    <button class="btn btn-outline-primary filter-btn" data-role="辅助">辅助</button>
+                  </div>
+                  <div class="btn-group" role="group" id="defaultFilterGroup">
+                    <button class="btn btn-outline-success filter-default-btn" data-default="all">全部状态</button>
+                    <button class="btn btn-outline-success filter-default-btn" data-default="true">默认英雄</button>
+                    <button class="btn btn-outline-success filter-default-btn" data-default="false">非默认</button>
+                  </div>
+                </div>
+              </div>
+              <div class="col-md-4">
+                <div class="d-flex">
+                  <input type="text" id="searchInput" class="form-control me-2" placeholder="搜索英雄名称...">
+                  <button class="btn btn-outline-primary" onclick="loadHeroes()">
+                    <i class="bi bi-search"></i>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 英雄列表 -->
+        <div class="card">
+          <div class="card-header d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">英雄列表</h5>
+            <span class="text-muted" id="paginationInfo">
+              加载中...
+            </span>
+          </div>
+          <div class="card-body table-container">
+            <div class="table-responsive" id="heroTableContainer">
+              <table class="table table-striped table-hover align-middle">
+                <thead>
+                  <tr>
+                    <th style="width: 60px;">序号</th>
+                    <th style="width: 60px;">头像</th>
+                    <th>英雄名称</th>
+                    <th>职业</th>
+                    <th>默认英雄</th>
+                    <th style="width: 150px;">操作</th>
+                  </tr>
+                </thead>
+                <tbody id="heroTableBody">
+                  <!-- 动态加载 -->
+                </tbody>
+              </table>
+            </div>
+
+            <!-- 分页 -->
+            <nav aria-label="Page navigation" class="mt-4" id="paginationContainer">
+              <!-- 动态加载 -->
+            </nav>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 添加英雄模态框 -->
+  <div class="modal fade" id="addHeroModal" tabindex="-1">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">添加英雄</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <form id="addHeroForm">
+            <div class="mb-3">
+              <label class="form-label">英雄名称 <span class="text-danger">*</span></label>
+              <input type="text" class="form-control" name="name" required placeholder="例如：李白">
+            </div>
+            <div class="mb-3">
+              <label class="form-label">职业 <span class="text-danger">*</span></label>
+              <select class="form-select" name="role" required>
+                <option value="">请选择职业</option>
+                <option value="坦克">坦克</option>
+                <option value="战士">战士</option>
+                <option value="刺客">刺客</option>
+                <option value="法师">法师</option>
+                <option value="射手">射手</option>
+                <option value="辅助">辅助</option>
+              </select>
+            </div>
+            <div class="mb-3">
+              <label class="form-label">或输入多职业（用/分隔）</label>
+              <input type="text" class="form-control" name="roleCustom" placeholder="例如：法师/刺客">
+              <small class="text-muted">如果选择"其他"，请在此输入具体职业</small>
+            </div>
+          </form>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+          <button type="button" class="btn btn-primary" onclick="submitAddHero()">添加</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 编辑英雄模态框 -->
+  <div class="modal fade" id="editHeroModal" tabindex="-1">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">编辑英雄</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <form id="editHeroForm">
+            <input type="hidden" name="originalName" id="editOriginalName">
+            <div class="mb-3">
+              <label class="form-label">英雄名称 <span class="text-danger">*</span></label>
+              <input type="text" class="form-control" name="name" id="editName" required>
+            </div>
+            <div class="mb-3">
+              <label class="form-label">职业 <span class="text-danger">*</span></label>
+              <input type="text" class="form-control" name="role" id="editRole" required placeholder="例如：刺客">
+              <small class="text-muted">多职业用/分隔，例如：法师/刺客</small>
+            </div>
+            <div class="mb-3 form-check">
+              <input type="checkbox" class="form-check-input" id="editIsDefault" name="isDefault">
+              <label class="form-check-label" for="editIsDefault">默认英雄（新账号自动拥有）</label>
+            </div>
+          </form>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+          <button type="button" class="btn btn-primary" onclick="submitEditHero()">保存</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 删除确认模态框 -->
+  <div class="modal fade" id="deleteHeroModal" tabindex="-1">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">确认删除</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <p>确定要删除英雄 <strong id="deleteHeroName"></strong> 吗？</p>
+          <p class="text-danger">此操作不可恢复！</p>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+          <button type="button" class="btn btn-danger" onclick="confirmDeleteHero()">删除</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  <script>
+    // 全局状态
+    let currentState = {
+      page: 1,
+      role: 'all',
+      search: '',
+      isDefault: 'all',  // all/true/false
+      allHeroes: []  // 存储所有英雄用于职业分布统计
+    };
+    let heroToDelete = null;
+    let cachedHeroImages = null;
+
+    let defaultHeroesList = [
+      '亚瑟', '妲己', '后羿', '安琪拉',
+      '元流之子·坦克', '元流之子·刺客', '元流之子·法师', 
+      '元流之子·射手', '元流之子·辅助'
+    ];
+
+    // 初始化
+    document.addEventListener('DOMContentLoaded', function() {
+      loadHeroes();
+      bindEvents();
+      updateFilterButtons();  // 设置初始按钮状态
+    });
+
+    // 绑定事件
+    function bindEvents() {
+      // 职业筛选按钮
+      document.querySelectorAll('#roleFilterGroup .filter-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+          currentState.role = this.dataset.role;
+          currentState.page = 1;
+          updateFilterButtons();
+          loadHeroes();
+        });
+      });
+
+      // 默认英雄筛选按钮
+      document.querySelectorAll('#defaultFilterGroup .filter-default-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+          currentState.isDefault = this.dataset.default;
+          currentState.page = 1;
+          updateFilterButtons();
+          loadHeroes();
+        });
+      });
+
+      // 搜索输入框回车
+      document.getElementById('searchInput').addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') {
+          currentState.search = this.value;
+          currentState.page = 1;
+          loadHeroes();
+        }
+      });
+    }
+
+    // 更新筛选按钮状态
+    function updateFilterButtons() {
+      document.querySelectorAll('#roleFilterGroup .filter-btn').forEach(btn => {
+        if (btn.dataset.role === currentState.role) {
+          btn.classList.add('active');
+        } else {
+          btn.classList.remove('active');
+        }
+      });
+      
+      // 更新默认英雄筛选按钮状态
+      document.querySelectorAll('#defaultFilterGroup .filter-default-btn').forEach(btn => {
+        if (btn.dataset.default === currentState.isDefault) {
+          btn.classList.add('active');
+        } else {
+          btn.classList.remove('active');
+        }
+      });
+    }
+
+    // 加载英雄数据
+    async function loadHeroes() {
+      const container = document.getElementById('heroTableContainer');
+      container.classList.add('table-loading');
+
+      try {
+        const params = new URLSearchParams({
+          page: currentState.page,
+          role: currentState.role,
+          search: currentState.search
+        });
+        
+        // 添加默认英雄筛选参数
+        if (currentState.isDefault !== 'all') {
+          params.append('isDefault', currentState.isDefault);
+        }
+
+        const response = await fetch(`/api/admin/heroes?${params}`, {
+          credentials: 'include'
+        });
+        const data = await response.json();
+
+        if (data.success) {
+          cachedHeroImages = data.heroImages;
+          currentState.allHeroes = data.allHeroes;  // 保存所有英雄用于职业分布统计
+          // 更新默认英雄列表
+          if (data.defaultHeroNames) {
+            defaultHeroesList = data.defaultHeroNames;
+          }
+          renderRoleStats();
+          renderTable(data.heroes, data.pagination, data.heroImages);
+          renderPagination(data.pagination);
+        }
+      } catch (err) {
+        console.error('加载失败:', err);
+        alert('加载失败，请刷新页面重试');
+      } finally {
+        container.classList.remove('table-loading');
+      }
+    }
+
+    // 渲染职业统计
+    // 职业顺序：坦克、战士、刺客、法师、射手、辅助
+    const ROLE_ORDER = ['坦克', '战士', '刺客', '法师', '射手', '辅助'];
+
+    function renderRoleStats() {
+      // 根据当前所有英雄数据动态计算职业分布
+      const roleCounts = {};
+      currentState.allHeroes.forEach(hero => {
+        const roles = hero.role.split('/');
+        roles.forEach(role => {
+          roleCounts[role] = (roleCounts[role] || 0) + 1;
+        });
+      });
+
+      const container = document.getElementById('roleStatsContainer');
+      let html = '<div class="col-md-12"><div class="card"><div class="card-header"><h5 class="mb-0">职业分布</h5></div><div class="card-body"><div class="row">';
+      
+      // 按照固定顺序渲染职业卡片
+      ROLE_ORDER.forEach(role => {
+        const count = roleCounts[role] || 0;
+        const isActive = currentState.role === role;
+        html += `
+          <div class="col-md-2 col-4 mb-2">
+            <div class="border rounded p-2 text-center ${isActive ? 'bg-primary text-white' : 'role-filter-btn'}" 
+                 onclick="selectRole('${role}')" style="cursor: pointer;">
+              <div class="h5 mb-0">${count}</div>
+              <small class="${isActive ? '' : 'text-muted'}">${role}</small>
+            </div>
+          </div>
+        `;
+      });
+      
+      html += '</div></div></div></div>';
+      container.innerHTML = html;
+    }
+
+    // 选择职业
+    function selectRole(role) {
+      currentState.role = role;
+      currentState.page = 1;
+      updateFilterButtons();
+      loadHeroes();
+    }
+
+    // 渲染表格
+    function renderTable(heroes, pagination, heroImages) {
+      const tbody = document.getElementById('heroTableBody');
+      const info = document.getElementById('paginationInfo');
+      
+      info.textContent = `显示 ${pagination.startIndex} - ${pagination.endIndex} 条，共 ${pagination.totalHeroes} 条`;
+      
+      let html = '';
+      heroes.forEach((hero, index) => {
+        const globalIndex = pagination.startIndex + index;
+        const heroImage = heroImages[hero.name];
+        const isDefault = defaultHeroesList.includes(hero.name);
+        
+        html += `
+          <tr>
+            <td>${globalIndex}</td>
+            <td>
+              ${heroImage ? 
+                `<img src="${heroImage.image}" alt="${hero.name}" class="hero-avatar">` :
+                `<div class="hero-avatar bg-secondary d-inline-flex align-items-center justify-content-center text-white">${hero.name.charAt(0)}</div>`
+              }
+            </td>
+            <td><strong>${hero.name}</strong></td>
+            <td>
+              ${hero.role.split('/').map(r => `<span class="badge bg-info role-badge me-1">${r}</span>`).join('')}
+            </td>
+            <td>
+              ${isDefault ? 
+                '<span class="badge bg-success">是</span>' : 
+                '<span class="badge bg-secondary">否</span>'
+              }
+            </td>
+            <td class="action-btns">
+              <button class="btn btn-sm btn-outline-primary" onclick='editHero(${JSON.stringify(hero.name)}, ${JSON.stringify(hero.role)})'>
+                <i class="bi bi-pencil"></i>
+              </button>
+              <button class="btn btn-sm btn-outline-danger" onclick='deleteHero(${JSON.stringify(hero.name)})'>
+                <i class="bi bi-trash"></i>
+              </button>
+            </td>
+          </tr>
+        `;
+      });
+      
+      tbody.innerHTML = html;
+    }
+
+    // 渲染分页
+    function renderPagination(pagination) {
+      const container = document.getElementById('paginationContainer');
+      
+      if (pagination.totalPages <= 1) {
+        container.innerHTML = '';
+        return;
+      }
+      
+      let startPage = Math.max(1, pagination.currentPage - 2);
+      let endPage = Math.min(pagination.totalPages, startPage + 4);
+      if (endPage - startPage < 4) {
+        startPage = Math.max(1, endPage - 4);
+      }
+      
+      let html = '<ul class="pagination justify-content-center align-items-center flex-wrap">';
+      
+      // 首页
+      html += `
+        <li class="page-item ${pagination.currentPage === 1 ? 'disabled' : ''}">
+          <button class="page-link" onclick="goToPage(1)" ${pagination.currentPage === 1 ? 'disabled' : ''}>
+            <i class="bi bi-chevron-double-left"></i>
+          </button>
+        </li>
+      `;
+      
+      // 上一页
+      html += `
+        <li class="page-item ${pagination.currentPage === 1 ? 'disabled' : ''}">
+          <button class="page-link" onclick="goToPage(${pagination.currentPage - 1})" ${pagination.currentPage === 1 ? 'disabled' : ''}>
+            <i class="bi bi-chevron-left"></i>
+          </button>
+        </li>
+      `;
+      
+      // 页码
+      for (let i = startPage; i <= endPage; i++) {
+        html += `
+          <li class="page-item ${i === pagination.currentPage ? 'active' : ''}">
+            <button class="page-link" onclick="goToPage(${i})">${i}</button>
+          </li>
+        `;
+      }
+      
+      // 下一页
+      html += `
+        <li class="page-item ${pagination.currentPage === pagination.totalPages ? 'disabled' : ''}">
+          <button class="page-link" onclick="goToPage(${pagination.currentPage + 1})" ${pagination.currentPage === pagination.totalPages ? 'disabled' : ''}>
+            <i class="bi bi-chevron-right"></i>
+          </button>
+        </li>
+      `;
+      
+      // 末页
+      html += `
+        <li class="page-item ${pagination.currentPage === pagination.totalPages ? 'disabled' : ''}">
+          <button class="page-link" onclick="goToPage(${pagination.totalPages})" ${pagination.currentPage === pagination.totalPages ? 'disabled' : ''}>
+            <i class="bi bi-chevron-double-right"></i>
+          </button>
+        </li>
+      `;
+      
+      // 跳转输入框
+      html += `
+        <li class="page-item ms-2">
+          <div class="jump-to-container">
+            <span>跳转到</span>
+            <input type="number" id="jumpPageInput" class="form-control form-control-sm" 
+                   min="1" max="${pagination.totalPages}" placeholder="">
+            <button class="btn btn-sm btn-outline-primary" onclick="jumpToPage()">GO</button>
+          </div>
+        </li>
+      `;
+      
+      html += '</ul>';
+      container.innerHTML = html;
+      
+      // 绑定回车事件
+      setTimeout(() => {
+        const input = document.getElementById('jumpPageInput');
+        if (input) {
+          input.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+              jumpToPage();
+            }
+          });
+        }
+      }, 0);
+    }
+
+    // 跳转到指定页
+    function goToPage(page) {
+      currentState.page = page;
+      loadHeroes();
+      // 滚动到表格顶部
+      document.querySelector('.table-container').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
+    // 跳转输入框
+    function jumpToPage() {
+      const input = document.getElementById('jumpPageInput');
+      if (!input) return;
+      
+      const page = parseInt(input.value);
+      const maxPage = parseInt(input.max);
+      
+      if (page && page >= 1 && page <= maxPage) {
+        goToPage(page);
+      } else {
+        alert('请输入有效的页码（1-' + maxPage + '）');
+      }
+    }
+
+    // 添加英雄
+    async function submitAddHero() {
+      const form = document.getElementById('addHeroForm');
+      const formData = new FormData(form);
+      
+      let role = formData.get('role');
+      const roleCustom = formData.get('roleCustom');
+      
+      if (role === '其他' && roleCustom) {
+        role = roleCustom;
+      }
+      
+      if (!formData.get('name') || !role) {
+        alert('请填写英雄名称和职业');
+        return;
+      }
+
+      try {
+        const response = await fetch('/api/admin/heroes', {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: formData.get('name'),
+            role: role
+          })
+        });
+
+        const data = await response.json();
+        
+        if (data.success) {
+          alert('添加成功');
+          form.reset();
+          bootstrap.Modal.getInstance(document.getElementById('addHeroModal')).hide();
+          loadHeroes();
+        } else {
+          alert(data.error || '添加失败');
+        }
+      } catch (err) {
+        console.error('添加错误:', err);
+        alert('添加失败，请重试');
+      }
+    }
+
+    // 编辑英雄
+    function editHero(name, role) {
+      document.getElementById('editOriginalName').value = name;
+      document.getElementById('editName').value = name;
+      document.getElementById('editRole').value = role;
+      // 设置默认英雄复选框状态
+      const isDefault = defaultHeroesList.includes(name);
+      document.getElementById('editIsDefault').checked = isDefault;
+      
+      const modal = new bootstrap.Modal(document.getElementById('editHeroModal'));
+      modal.show();
+    }
+
+    // 提交编辑
+    async function submitEditHero() {
+      const originalName = document.getElementById('editOriginalName').value;
+      const name = document.getElementById('editName').value;
+      const role = document.getElementById('editRole').value;
+      const isDefault = document.getElementById('editIsDefault').checked;
+      
+      if (!name || !role) {
+        alert('请填写英雄名称和职业');
+        return;
+      }
+
+      try {
+        const response = await fetch(`/api/admin/heroes/${encodeURIComponent(originalName)}`, {
+          method: 'PUT',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name, role, isDefault })
+        });
+
+        const data = await response.json();
+        
+        if (data.success) {
+          alert('修改成功');
+          bootstrap.Modal.getInstance(document.getElementById('editHeroModal')).hide();
+          loadHeroes();
+        } else {
+          alert(data.error || '修改失败');
+        }
+      } catch (err) {
+        console.error('修改错误:', err);
+        alert('修改失败，请重试');
+      }
+    }
+
+    // 删除英雄
+    function deleteHero(name) {
+      heroToDelete = name;
+      document.getElementById('deleteHeroName').textContent = name;
+      
+      const modal = new bootstrap.Modal(document.getElementById('deleteHeroModal'));
+      modal.show();
+    }
+
+    // 确认删除
+    async function confirmDeleteHero() {
+      if (!heroToDelete) return;
+
+      try {
+        const response = await fetch(`/api/admin/heroes/${encodeURIComponent(heroToDelete)}`, {
+          method: 'DELETE',
+          credentials: 'include'
+        });
+
+        const data = await response.json();
+        
+        if (data.success) {
+          alert('删除成功');
+          bootstrap.Modal.getInstance(document.getElementById('deleteHeroModal')).hide();
+          loadHeroes();
+        } else {
+          alert(data.error || '删除失败');
+        }
+      } catch (err) {
+        console.error('删除错误:', err);
+        alert('删除失败，请重试');
+      }
+      
+      heroToDelete = null;
+    }
+  </script>
+</body>
+</html>

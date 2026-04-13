@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title><%= title %> - 管理员后台</title>
+  <!-- Favicon -->
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="alternate icon" href="/favicon.png">
+  <!-- Bootstrap CSS -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <!-- Bootstrap Icons -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
+  <!-- Custom CSS -->
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <%- include('../partials/navbar') %>
+
+  <div class="container-fluid mt-4">
+    <div class="row">
+      <!-- 侧边栏 -->
+      <div class="col-md-2">
+        <div class="list-group">
+          <a href="/admin" class="list-group-item list-group-item-action">
+            <i class="bi bi-speedometer2 me-2"></i>概览
+          </a>
+          <a href="/admin/users" class="list-group-item list-group-item-action active">
+            <i class="bi bi-people me-2"></i>用户管理
+          </a>
+          <a href="/admin/heroes" class="list-group-item list-group-item-action">
+            <i class="bi bi-person-badge me-2"></i>英雄管理
+          </a>
+          <a href="/admin/backup" class="list-group-item list-group-item-action">
+            <i class="bi bi-database me-2"></i>数据备份
+          </a>
+        </div>
+      </div>
+      
+      <!-- 主内容 -->
+      <div class="col-md-10">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+          <h3>用户管理</h3>
+          <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addUserModal">
+            添加用户
+          </button>
+        </div>
+
+        <!-- 用户列表 -->
+        <div class="card">
+          <div class="card-body">
+            <div class="table-responsive">
+              <table class="table table-striped table-hover">
+                <thead>
+                  <tr>
+                    <th>ID</th>
+                    <th>用户名</th>
+                    <th>邮箱</th>
+                    <th>角色</th>
+                    <th>创建时间</th>
+                    <th>操作</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <% users.forEach(user => { %>
+                    <tr>
+                      <td><code><%= user.id %></code></td>
+                      <td><strong><%= user.username %></strong></td>
+                      <td><%= user.email || '-' %></td>
+                      <td>
+                        <% if (user.isAdmin) { %>
+                          <span class="badge bg-danger">管理员</span>
+                        <% } else { %>
+                          <span class="badge bg-secondary">普通用户</span>
+                        <% } %>
+                      </td>
+                      <td><%= new Date(user.createdAt).toLocaleDateString() %></td>
+                      <td>
+                        <button class="btn btn-sm btn-outline-primary" 
+                                onclick="editUser('<%= user.id %>', '<%= user.username %>', '<%= user.email %>', <%= user.isAdmin %>)">
+                          编辑
+                        </button>
+                        <button class="btn btn-sm btn-outline-danger" 
+                                onclick="deleteUser('<%= user.id %>', '<%= user.username %>')"
+                                <%= user.id === currentUser.id ? 'disabled title="不能删除自己"' : '' %>>
+                          删除
+                        </button>
+                      </td>
+                    </tr>
+                  <% }); %>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 添加用户模态框 -->
+  <div class="modal fade" id="addUserModal" tabindex="-1">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">添加用户</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <form id="addUserForm">
+            <div class="mb-3">
+              <label class="form-label">用户名</label>
+              <input type="text" class="form-control" name="username" required>
+            </div>
+            <div class="mb-3">
+              <label class="form-label">密码</label>
+              <input type="password" class="form-control" name="password" required minlength="6">
+              <small class="text-muted">至少6位</small>
+            </div>
+            <div class="mb-3">
+              <label class="form-label">邮箱</label>
+              <input type="email" class="form-control" name="email">
+            </div>
+            <div class="mb-3">
+              <div class="form-check">
+                <input class="form-check-input" type="checkbox" name="isAdmin" id="isAdmin">
+                <label class="form-check-label" for="isAdmin">设为管理员</label>
+              </div>
+            </div>
+          </form>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+          <button type="button" class="btn btn-primary" onclick="submitAddUser()">添加</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 编辑用户模态框 -->
+  <div class="modal fade" id="editUserModal" tabindex="-1">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">编辑用户</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <form id="editUserForm">
+            <input type="hidden" name="userId" id="editUserId">
+            <div class="mb-3">
+              <label class="form-label">用户名</label>
+              <input type="text" class="form-control" name="username" id="editUsername" required>
+            </div>
+            <div class="mb-3">
+              <label class="form-label">新密码（留空则不修改）</label>
+              <input type="password" class="form-control" name="password" minlength="6">
+              <small class="text-muted">至少6位，留空则不修改</small>
+            </div>
+            <div class="mb-3">
+              <label class="form-label">邮箱</label>
+              <input type="email" class="form-control" name="email" id="editEmail">
+            </div>
+            <div class="mb-3">
+              <div class="form-check">
+                <input class="form-check-input" type="checkbox" name="isAdmin" id="editIsAdmin">
+                <label class="form-check-label" for="editIsAdmin">设为管理员</label>
+              </div>
+            </div>
+          </form>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+          <button type="button" class="btn btn-primary" onclick="submitEditUser()">保存</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  <script>
+    // 添加用户
+    async function submitAddUser() {
+      const form = document.getElementById('addUserForm');
+      const formData = new FormData(form);
+      const data = {
+        username: formData.get('username'),
+        password: formData.get('password'),
+        email: formData.get('email'),
+        isAdmin: formData.get('isAdmin') === 'on'
+      };
+      
+      try {
+        const response = await fetch('/api/admin/users', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data)
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+          location.reload();
+        } else {
+          alert(result.error || '添加失败');
+        }
+      } catch (error) {
+        alert('添加失败：' + error.message);
+      }
+    }
+
+    // 编辑用户
+    function editUser(id, username, email, isAdmin) {
+      document.getElementById('editUserId').value = id;
+      document.getElementById('editUsername').value = username;
+      document.getElementById('editEmail').value = email || '';
+      document.getElementById('editIsAdmin').checked = isAdmin;
+      
+      new bootstrap.Modal(document.getElementById('editUserModal')).show();
+    }
+
+    // 提交编辑
+    async function submitEditUser() {
+      const form = document.getElementById('editUserForm');
+      const formData = new FormData(form);
+      const userId = document.getElementById('editUserId').value;
+      const data = {
+        username: formData.get('username'),
+        email: formData.get('email'),
+        isAdmin: formData.get('isAdmin') === 'on'
+      };
+      
+      const password = formData.get('password');
+      if (password) {
+        data.password = password;
+      }
+      
+      try {
+        const response = await fetch(`/api/admin/users/${userId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data)
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+          location.reload();
+        } else {
+          alert(result.error || '更新失败');
+        }
+      } catch (error) {
+        alert('更新失败：' + error.message);
+      }
+    }
+
+    // 删除用户
+    async function deleteUser(id, username) {
+      if (!confirm(`确定要删除用户 "${username}" 吗？此操作不可恢复。`)) {
+        return;
+      }
+      
+      try {
+        const response = await fetch(`/api/admin/users/${id}`, {
+          method: 'DELETE'
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+          location.reload();
+        } else {
+          alert(result.error || '删除失败');
+        }
+      } catch (error) {
+        alert('删除失败：' + error.message);
+      }
+    }
+  </script>
+</body>
+</html>

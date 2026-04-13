@@ -1,0 +1,129 @@
+<%- include('../partials/header') %>
+
+<div class="container mt-4">
+  <nav aria-label="breadcrumb">
+    <ol class="breadcrumb">
+      <li class="breadcrumb-item"><a href="/admin">管理后台</a></li>
+      <li class="breadcrumb-item active">区服管理</li>
+    </ol>
+  </nav>
+  
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-globe"></i> 区服管理</h2>
+    <div>
+      <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addServerModal">
+        <i class="bi bi-plus"></i> 添加区服
+      </button>
+      <a href="/admin" class="btn btn-outline-secondary ms-2">
+        <i class="bi bi-arrow-left"></i> 返回
+      </a>
+    </div>
+  </div>
+  
+  <% regionTypes.forEach(regionType => { %>
+    <div class="card mb-4">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <h5 class="mb-0"><%= regionType.name %></h5>
+        <span class="badge bg-primary"><%= regionType.serverList.length %> 个区服</span>
+      </div>
+      <div class="card-body">
+        <div class="row" id="serverList_<%= regionType.id %>">
+          <% regionType.serverList.forEach((server, idx) => { %>
+            <div class="col-md-3 col-6 mb-2 server-item">
+              <div class="d-flex align-items-center justify-content-between border rounded p-2">
+                <span class="text-truncate"><%= idx + 1 %>. <%= server %></span>
+                <button class="btn btn-sm btn-link text-danger" onclick="deleteServer('<%= regionType.id %>', '<%= server %>')">
+                  <i class="bi bi-x"></i>
+                </button>
+              </div>
+            </div>
+          <% }); %>
+        </div>
+      </div>
+    </div>
+  <% }); %>
+</div>
+
+<!-- 添加区服模态框 -->
+<div class="modal fade" id="addServerModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">添加区服</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <form id="addServerForm">
+          <div class="mb-3">
+            <label class="form-label">大区</label>
+            <select class="form-select" name="regionId" required>
+              <option value="">请选择大区</option>
+              <% regionTypes.forEach(rt => { %>
+                <option value="<%= rt.id %>"><%= rt.name %></option>
+              <% }); %>
+            </select>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">区服名称</label>
+            <input type="text" class="form-control" name="serverName" required placeholder="例如：王者独尊">
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+        <button type="button" class="btn btn-primary" onclick="submitAddServer()">添加</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+function submitAddServer() {
+  const form = document.getElementById('addServerForm');
+  const formData = new FormData(form);
+  const data = {
+    regionId: formData.get('regionId'),
+    serverName: formData.get('serverName')
+  };
+  
+  fetch('/api/admin/servers', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data)
+  })
+  .then(r => r.json())
+  .then(result => {
+    if (result.success) {
+      location.reload();
+    } else {
+      alert(result.error || '添加失败');
+    }
+  });
+}
+
+function deleteServer(regionId, serverName) {
+  if (!confirm('确定要删除区服 "' + serverName + '" 吗？')) return;
+  
+  fetch('/api/admin/servers/' + regionId + '/' + encodeURIComponent(serverName), {
+    method: 'DELETE'
+  })
+  .then(r => r.json())
+  .then(result => {
+    if (result.success) {
+      location.reload();
+    } else {
+      alert(result.error || '删除失败');
+    }
+  });
+}
+</script>
+
+<style>
+.server-item .btn-link {
+  padding: 0 4px;
+  font-size: 1.2rem;
+  line-height: 1;
+}
+</style>
+
+<%- include('../partials/footer') %>

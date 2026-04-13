@@ -1,0 +1,66 @@
+<%- include('partials/header') %>
+
+<div class="container mt-5">
+  <div class="row justify-content-center">
+    <div class="col-md-8 text-center">
+      <h1 class="display-4 mb-4">
+        <i class="bi bi-controller text-primary"></i>
+        王者荣耀英雄统计
+      </h1>
+      <p class="lead mb-4">
+        轻松管理你的王者荣耀账号英雄收藏，追踪每个区服的英雄收集进度
+      </p>
+      
+      <div class="row mt-5">
+        <div class="col-md-4">
+          <div class="card h-100 border-0 shadow-sm">
+            <div class="card-body">
+              <i class="bi bi-people-fill display-4 text-primary"></i>
+              <h5 class="card-title mt-3">多账号管理</h5>
+              <p class="card-text text-muted">支持QQ和微信账号，区分安卓和iOS平台</p>
+            </div>
+          </div>
+        </div>
+        <div class="col-md-4">
+          <div class="card h-100 border-0 shadow-sm">
+            <div class="card-body">
+              <i class="bi bi-check-circle-fill display-4 text-success"></i>
+              <h5 class="card-title mt-3">英雄标记</h5>
+              <p class="card-text text-muted">快速标记已拥有的英雄，自动统计收集进度</p>
+            </div>
+          </div>
+        </div>
+        <div class="col-md-4">
+          <div class="card h-100 border-0 shadow-sm">
+            <div class="card-body">
+              <i class="bi bi-bar-chart-fill display-4 text-info"></i>
+              <h5 class="card-title mt-3">数据统计</h5>
+              <p class="card-text text-muted">按职业分类统计，可视化展示收集进度</p>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <div class="mt-5">
+        <% if (user) { %>
+          <a href="/dashboard" class="btn btn-primary btn-lg">
+            <i class="bi bi-speedometer2"></i> 进入我的账号
+          </a>
+        <% } else { %>
+          <a href="/login" class="btn btn-outline-primary btn-lg me-2">
+            <i class="bi bi-box-arrow-in-right"></i> 登录
+          </a>
+          <a href="/register" class="btn btn-primary btn-lg">
+            <i class="bi bi-person-plus"></i> 立即注册
+          </a>
+        <% } %>
+      </div>
+      
+      <div class="mt-4 text-muted">
+        <small>包含130位英雄数据 | 支持416个区服 | 自动默认英雄</small>
+      </div>
+    </div>
+  </div>
+</div>
+
+<%- include('partials/footer') %>

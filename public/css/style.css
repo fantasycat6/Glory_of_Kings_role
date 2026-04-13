@@ -1,0 +1,138 @@
+/**
+ * 王者荣耀英雄统计网站 - 样式表
+ */
+
+/* 全局样式 */
+body {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.footer {
+  margin-top: auto;
+}
+
+/* 英雄卡片样式 */
+.hero-card {
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.hero-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+}
+
+.hero-card.border-success {
+  background-color: #f0fff4;
+}
+
+/* 英雄头像占位符 */
+.hero-avatar {
+  width: 60px;
+  height: 60px;
+  margin: 0 auto;
+}
+
+.avatar-placeholder {
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-size: 24px;
+  font-weight: bold;
+}
+
+/* 统计卡片 */
+.card .display-4 {
+  font-size: 2.5rem;
+}
+
+/* 导航栏 */
+.navbar-brand {
+  font-weight: bold;
+}
+
+/* 表单样式 */
+.form-check-input.hero-toggle {
+  width: 3em;
+  height: 1.5em;
+}
+
+/* 按钮组 */
+.btn-group .btn {
+  margin-bottom: 0.25rem;
+}
+
+/* 表格样式 */
+.table th {
+  font-weight: 600;
+  background-color: #f8f9fa;
+}
+
+/* 卡片头部 */
+.card-header {
+  background-color: #f8f9fa;
+  font-weight: 600;
+}
+
+/* 面包屑导航 */
+.breadcrumb {
+  background-color: transparent;
+  padding: 0;
+}
+
+/* 徽章样式 */
+.badge {
+  font-weight: 500;
+}
+
+/* 响应式调整 */
+@media (max-width: 768px) {
+  .hero-avatar {
+    width: 50px;
+    height: 50px;
+  }
+  
+  .avatar-placeholder {
+    font-size: 20px;
+  }
+  
+  .card .display-4 {
+    font-size: 1.8rem;
+  }
+}
+
+/* 动画效果 */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.hero-item {
+  animation: fadeIn 0.3s ease;
+}
+
+/* 自定义滚动条 */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f1f1;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #888;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #555;
+}

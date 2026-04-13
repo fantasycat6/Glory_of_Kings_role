@@ -1,0 +1,51 @@
+<nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+  <div class="container">
+    <a class="navbar-brand" href="/">
+      <strong>王者荣耀英雄统计</strong>
+    </a>
+    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+      <span class="navbar-toggler-icon"></span>
+    </button>
+    <div class="collapse navbar-collapse" id="navbarNav">
+      <ul class="navbar-nav me-auto">
+        <li class="nav-item">
+          <a class="nav-link <%= path === '/' ? 'active' : '' %>" href="/">首页</a>
+        </li>
+        <% if (user) { %>
+          <li class="nav-item">
+            <a class="nav-link <%= path === '/dashboard' ? 'active' : '' %>" href="/dashboard">我的账号</a>
+          </li>
+        <% } %>
+        <% if (user && user.isAdmin) { %>
+          <li class="nav-item">
+            <a class="nav-link <%= path.startsWith('/admin') ? 'active' : '' %>" href="/admin">管理后台</a>
+          </li>
+        <% } %>
+      </ul>
+      <ul class="navbar-nav">
+        <% if (user) { %>
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle" href="#" id="userDropdown" role="button" data-bs-toggle="dropdown">
+              <%= user.username %>
+              <% if (user.isAdmin) { %>
+                <span class="badge bg-danger">管理员</span>
+              <% } %>
+            </a>
+            <ul class="dropdown-menu dropdown-menu-end">
+              <li><a class="dropdown-item" href="/profile">个人中心</a></li>
+              <li><hr class="dropdown-divider"></li>
+              <li><a class="dropdown-item" href="/logout">退出登录</a></li>
+            </ul>
+          </li>
+        <% } else { %>
+          <li class="nav-item">
+            <a class="nav-link <%= path === '/login' ? 'active' : '' %>" href="/login">登录</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link <%= path === '/register' ? 'active' : '' %>" href="/register">注册</a>
+          </li>
+        <% } %>
+      </ul>
+    </div>
+  </div>
+</nav>

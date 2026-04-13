@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title><%= title %> - 王者荣耀英雄统计</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="/css/style.css">
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+</head>
+<body>
+  <%- include('partials/navbar') %>
+
+  <div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+      <h2>我的游戏账号</h2>
+      <a href="/accounts/add" class="btn btn-primary">添加账号</a>
+    </div>
+
+    <% if (accounts.length === 0) { %>
+      <div class="alert alert-info">
+        还没有添加游戏账号，点击"添加账号"开始管理你的英雄
+      </div>
+    <% } else { %>
+      <div class="row">
+        <% accounts.forEach(account => { %>
+          <div class="col-md-6 col-lg-4 mb-3">
+            <div class="card h-100">
+              <div class="card-body">
+                <div class="d-flex justify-content-between align-items-start mb-2">
+                  <h5 class="card-title mb-0"><%= account.name %></h5>
+                  <span class="badge bg-<%= account.loginType === 'qq' ? 'primary' : 'success' %>">
+                    <%= account.loginType === 'qq' ? 'QQ' : '微信' %>
+                  </span>
+                </div>
+                <p class="card-text text-muted mb-3">
+                  <%= account.platform === 'android' ? '安卓' : '苹果' %>设备
+                </p>
+                <div class="d-flex gap-2">
+                  <a href="/accounts/<%= account.id %>" class="btn btn-primary btn-sm flex-fill">
+                    管理区服
+                  </a>
+                  <form action="/accounts/<%= account.id %>/delete" method="POST" class="d-inline">
+                    <button type="submit" class="btn btn-outline-danger btn-sm" 
+                            onclick="return confirm('确定要删除这个账号吗？所有区服数据也会被删除。')">
+                      删除
+                    </button>
+                  </form>
+                </div>
+              </div>
+              <div class="card-footer text-muted">
+                <small>创建时间：<%= new Date(account.createdAt).toLocaleDateString() %></small>
+              </div>
+            </div>
+          </div>
+        <% }); %>
+      </div>
+    <% } %>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

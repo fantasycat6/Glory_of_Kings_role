@@ -1,0 +1,27 @@
+{
+  "name": "glory_of_kings_role",
+  "version": "1.0.0",
+  "description": "王者荣耀英雄统计网站",
+  "main": "app.js",
+  "scripts": {
+    "start": "node app.js",
+    "dev": "nodemon app.js"
+  },
+  "keywords": [
+    "王者荣耀",
+    "英雄统计"
+  ],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "bcryptjs": "^3.0.2",
+    "cookie-parser": "^1.4.7",
+    "dotenv": "^16.5.0",
+    "ejs": "^3.1.10",
+    "express": "^5.1.0",
+    "jsonwebtoken": "^9.0.3",
+    "multer": "^1.4.5-lts.2",
+    "sqlite3": "^6.0.1"
+  }
+}
