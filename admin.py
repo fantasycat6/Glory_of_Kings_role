@@ -5,6 +5,7 @@ from flask import Blueprint, render_template, jsonify, request, redirect, url_fo
 from flask_login import login_required, current_user
 from functools import wraps
 from models import db, User, Account, Region, Hero, HeroOwnership, BackupFile, load_heroes_from_json, load_hero_images_from_json
+from config import BASE_DIR
 import json
 import os
 from datetime import datetime
@@ -723,6 +724,150 @@ def api_delete_backup(backup_id):
     return jsonify({'success': True, 'message': '备份已删除'})
 
 
+@admin_bp.route('/api/admin/backup/scan', methods=['POST'])
+@login_required
+@admin_required
+def api_scan_backups():
+    """扫描备份文件夹，同步到数据库"""
+    try:
+        backup_dir = os.path.join(BASE_DIR, 'backup')
+        if not os.path.exists(backup_dir):
+            return jsonify({'success': True, 'message': '备份目录不存在', 'added': 0})
+        
+        # 获取数据库中已有的备份文件名
+        existing_files = {b.filename for b in BackupFile.query.all()}
+        
+        added_count = 0
+        # 扫描 backup 文件夹
+        for filename in os.listdir(backup_dir):
+            if filename in existing_files:
+                continue
+                
+            filepath = os.path.join(backup_dir, filename)
+            if not os.path.isfile(filepath):
+                continue
+            
+            # 判断文件类型
+            if filename.endswith('.db'):
+                file_type = 'database'
+                backup_type = 'manual' if not filename.startswith('auto_') else 'auto'
+                description = '数据库备份'
+            elif filename.endswith('.json'):
+                file_type = 'json'
+                backup_type = 'manual' if not filename.startswith('auto_') else 'auto'
+                description = '英雄数据备份'
+            else:
+                continue
+            
+            # 添加到数据库
+            try:
+                backup_record = BackupFile(
+                    filename=filename,
+                    filepath=filepath,
+                    file_size=os.path.getsize(filepath),
+                    backup_type=backup_type,
+                    file_type=file_type,
+                    description=description,
+                    created_at=datetime.fromtimestamp(os.path.getmtime(filepath))
+                )
+                db.session.add(backup_record)
+                added_count += 1
+            except Exception as e:
+                print(f"扫描备份文件失败 {filename}: {e}")
+        
+        db.session.commit()
+        
+        return jsonify({
+            'success': True, 
+            'message': f'扫描完成，新增 {added_count} 个备份文件',
+            'added': added_count
+        })
+    except Exception as e:
+        db.session.rollback()
+        print(f"扫描备份文件错误: {e}")
+        return jsonify({'success': False, 'error': f'扫描失败: {str(e)}'}), 500
+
+
+@admin_bp.route('/api/admin/backup/cleanup-auto', methods=['POST'])
+@login_required
+@admin_required
+def api_cleanup_auto_backups():
+    """清理旧的自动备份，只保留最近5个"""
+    try:
+        # 获取所有自动备份，按时间倒序
+        auto_backups = BackupFile.query.filter_by(backup_type='auto').order_by(BackupFile.created_at.desc()).all()
+        
+        # 只保留最近5个
+        keep_count = 5
+        if len(auto_backups) <= keep_count:
+            return jsonify({
+                'success': True, 
+                'message': f'自动备份数量 ({len(auto_backups)}) 未超过限制 ({keep_count})，无需清理',
+                'deleted': 0
+            })
+        
+        # 删除旧的自动备份
+        deleted_count = 0
+        for backup in auto_backups[keep_count:]:
+            # 删除文件
+            if os.path.exists(backup.filepath):
+                try:
+                    os.remove(backup.filepath)
+                except Exception as e:
+                    print(f"删除自动备份文件失败 {backup.filename}: {e}")
+                    continue
+            
+            # 从数据库删除记录
+            db.session.delete(backup)
+            deleted_count += 1
+        
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': f'已清理 {deleted_count} 个旧自动备份，保留最近 {keep_count} 个',
+            'deleted': deleted_count
+        })
+    except Exception as e:
+        db.session.rollback()
+        print(f"清理自动备份错误: {e}")
+        return jsonify({'success': False, 'error': f'清理失败: {str(e)}'}), 500
+
+
+def cleanup_old_auto_backups():
+    """辅助函数：清理旧的自动备份，只保留最近5个"""
+    try:
+        # 获取所有自动备份，按时间倒序
+        auto_backups = BackupFile.query.filter_by(backup_type='auto').order_by(BackupFile.created_at.desc()).all()
+        
+        # 只保留最近5个
+        keep_count = 5
+        if len(auto_backups) <= keep_count:
+            return 0
+        
+        # 删除旧的自动备份
+        deleted_count = 0
+        for backup in auto_backups[keep_count:]:
+            # 删除文件
+            if os.path.exists(backup.filepath):
+                try:
+                    os.remove(backup.filepath)
+                except Exception as e:
+                    print(f"删除自动备份文件失败 {backup.filename}: {e}")
+                    continue
+            
+            # 从数据库删除记录
+            db.session.delete(backup)
+            deleted_count += 1
+        
+        db.session.commit()
+        return deleted_count
+    except Exception as e:
+        db.session.rollback()
+        print(f"清理自动备份错误: {e}")
+        return 0
+
+
 # ==================== 数据库备份管理 ====================
 
 @admin_bp.route('/api/admin/dbbackup/create', methods=['POST'])
@@ -741,13 +886,13 @@ def api_create_db_backup():
             return jsonify({'success': False, 'error': '数据库文件不存在'}), 404
         
         # 创建备份目录
-        backup_dir = BASE_DIR / 'backup'
-        backup_dir.mkdir(exist_ok=True)
+        backup_dir = os.path.join(BASE_DIR, 'backup')
+        os.makedirs(backup_dir, exist_ok=True)
         
         # 生成备份文件名
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
         filename = f'wzry_db_backup_{timestamp}.db'
-        filepath = backup_dir / filename
+        filepath = os.path.join(backup_dir, filename)
         
         # 复制数据库文件
         import shutil
@@ -756,8 +901,8 @@ def api_create_db_backup():
         # 记录到数据库
         backup_record = BackupFile(
             filename=filename,
-            filepath=str(filepath),
-            file_size=filepath.stat().st_size,
+            filepath=filepath,
+            file_size=os.path.getsize(filepath),
             backup_type='manual',
             file_type='database',
             description='数据库完整备份'
@@ -815,19 +960,19 @@ def api_import_db_backup():
             return jsonify({'success': False, 'error': '只支持 .db 格式的数据库文件'}), 400
         
         # 创建备份目录
-        backup_dir = BASE_DIR / 'backup'
-        backup_dir.mkdir(exist_ok=True)
+        backup_dir = os.path.join(BASE_DIR, 'backup')
+        os.makedirs(backup_dir, exist_ok=True)
         
         # 保存文件
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
         filename = f"imported_{timestamp}_{file.filename}"
-        filepath = backup_dir / filename
+        filepath = os.path.join(backup_dir, filename)
         file.save(filepath)
         
         # 验证是否是有效的SQLite数据库
         try:
             import sqlite3
-            conn = sqlite3.connect(str(filepath))
+            conn = sqlite3.connect(filepath)
             cursor = conn.cursor()
             # 检查是否有users表（基本验证）
             cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='users'")
@@ -844,8 +989,8 @@ def api_import_db_backup():
         # 记录到数据库
         backup_record = BackupFile(
             filename=filename,
-            filepath=str(filepath),
-            file_size=filepath.stat().st_size,
+            filepath=filepath,
+            file_size=os.path.getsize(filepath),
             backup_type='imported',
             file_type='database',
             description='导入的数据库备份'
@@ -883,11 +1028,11 @@ def api_restore_db_backup(backup_id):
         db_path = app.config.get('SQLITE_PATH', os.path.join(BASE_DIR, 'data', 'wzry.db'))
         
         # 先备份当前数据库（以防万一）
-        backup_dir = BASE_DIR / 'backup'
-        backup_dir.mkdir(exist_ok=True)
+        backup_dir = os.path.join(BASE_DIR, 'backup')
+        os.makedirs(backup_dir, exist_ok=True)
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
         auto_backup_filename = f'auto_backup_before_restore_{timestamp}.db'
-        auto_backup_path = backup_dir / auto_backup_filename
+        auto_backup_path = os.path.join(backup_dir, auto_backup_filename)
         
         import shutil
         if os.path.exists(db_path):
@@ -896,16 +1041,16 @@ def api_restore_db_backup(backup_id):
             # 记录自动备份
             auto_backup_record = BackupFile(
                 filename=auto_backup_filename,
-                filepath=str(auto_backup_path),
-                file_size=auto_backup_path.stat().st_size,
+                filepath=auto_backup_path,
+                file_size=os.path.getsize(auto_backup_path),
                 backup_type='auto',
                 file_type='database',
                 description='恢复前自动备份'
             )
             db.session.add(auto_backup_record)
-        
-        # 关闭数据库连接
-        db.session.remove()
+            
+            # 清理旧的自动备份（只保留最近5个）
+            cleanup_old_auto_backups()
         
         # 复制备份文件到数据库位置
         shutil.copy2(backup.filepath, db_path)
@@ -915,7 +1060,8 @@ def api_restore_db_backup(backup_id):
         return jsonify({
             'success': True,
             'message': '数据库恢复成功，请重新登录系统',
-            'auto_backup': auto_backup_filename if os.path.exists(auto_backup_path) else None
+            'auto_backup': auto_backup_filename if os.path.exists(auto_backup_path) else None,
+            'need_rescan': True
         })
     except Exception as e:
         print(f"恢复数据库备份错误: {e}")

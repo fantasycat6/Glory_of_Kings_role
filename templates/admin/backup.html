@@ -56,7 +56,17 @@
         </div>
     </div>
     
-    <h4 class="mb-3">备份历史</h4>
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h4 class="mb-0">备份历史</h4>
+        <div>
+            <button class="btn btn-outline-secondary btn-sm" onclick="cleanupAutoBackups()">
+                <i class="bi bi-trash"></i> 清理旧自动备份
+            </button>
+            <button class="btn btn-outline-primary btn-sm" onclick="scanBackups()">
+                <i class="bi bi-arrow-clockwise"></i> 扫描备份文件
+            </button>
+        </div>
+    </div>
     <div class="card">
         <div class="card-body">
             <div class="table-responsive">
@@ -133,6 +143,50 @@ async function loadBackups() {
         }
     } catch (error) {
         console.error('Error:', error);
+    }
+}
+
+async function scanBackups() {
+    if (!confirm('确定要扫描备份文件夹吗？\n\n这会查找 backup 文件夹中未记录的备份文件并添加到列表中。')) return;
+    
+    try {
+        const response = await fetch('/api/admin/backup/scan', {
+            method: 'POST'
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            alert(data.message);
+            loadBackups();
+        } else {
+            alert(data.error || '扫描失败');
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        alert('扫描失败，请重试');
+    }
+}
+
+async function cleanupAutoBackups() {
+    if (!confirm('确定要清理旧的自动备份吗？\n\n这会删除多余的自动备份，只保留最近5个。')) return;
+    
+    try {
+        const response = await fetch('/api/admin/backup/cleanup-auto', {
+            method: 'POST'
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            alert(data.message);
+            loadBackups();
+        } else {
+            alert(data.error || '清理失败');
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        alert('清理失败，请重试');
     }
 }
 
@@ -372,7 +426,7 @@ async function restoreDbBackup(id) {
         
         if (data.success) {
             alert(data.message + '\n\n系统将跳转到登录页面...');
-            window.location.href = '/auth/login';
+            window.location.href = '/login';
         } else {
             alert(data.error || '恢复失败');
         }

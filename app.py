@@ -65,8 +65,67 @@ def create_app(config_name=None):
     with app.app_context():
         db.create_all()
         init_default_data()
+        # 扫描并同步备份文件
+        scan_backup_files(app)
     
     return app
+
+
+def scan_backup_files(app):
+    """扫描 backup 文件夹，将备份文件同步到数据库"""
+    from models import BackupFile
+    from datetime import datetime
+    import os
+    
+    backup_dir = os.path.join(os.path.dirname(__file__), 'backup')
+    if not os.path.exists(backup_dir):
+        return
+    
+    # 获取数据库中已有的备份文件名
+    existing_files = {b.filename for b in BackupFile.query.all()}
+    
+    # 扫描 backup 文件夹
+    for filename in os.listdir(backup_dir):
+        if filename in existing_files:
+            continue
+            
+        filepath = os.path.join(backup_dir, filename)
+        if not os.path.isfile(filepath):
+            continue
+        
+        # 判断文件类型
+        if filename.endswith('.db'):
+            file_type = 'database'
+            backup_type = 'manual' if not filename.startswith('auto_') else 'auto'
+            description = '数据库备份'
+        elif filename.endswith('.json'):
+            file_type = 'json'
+            backup_type = 'manual' if not filename.startswith('auto_') else 'auto'
+            description = '英雄数据备份'
+        else:
+            continue
+        
+        # 添加到数据库
+        try:
+            backup_record = BackupFile(
+                filename=filename,
+                filepath=filepath,
+                file_size=os.path.getsize(filepath),
+                backup_type=backup_type,
+                file_type=file_type,
+                description=description,
+                created_at=datetime.fromtimestamp(os.path.getmtime(filepath))
+            )
+            db.session.add(backup_record)
+        except Exception as e:
+            print(f"扫描备份文件失败 {filename}: {e}")
+    
+    try:
+        db.session.commit()
+        print(f"备份文件扫描完成，共发现 {len([f for f in os.listdir(backup_dir) if f.endswith(('.db', '.json'))])} 个备份文件")
+    except Exception as e:
+        db.session.rollback()
+        print(f"备份文件扫描失败: {e}")
 
 
 if __name__ == '__main__':
