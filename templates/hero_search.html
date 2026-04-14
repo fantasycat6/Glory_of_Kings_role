@@ -1,0 +1,160 @@
+{% extends 'base.html' %}
+
+{% block title %}英雄查询 - 王者荣耀英雄统计{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h2 class="mb-4"><i class="bi bi-search"></i> 英雄查询</h2>
+    
+    <div class="card mb-4">
+        <div class="card-body">
+            <p class="text-muted mb-3">输入英雄名称，查询您的哪些游戏账号和区服已拥有该英雄</p>
+            <div class="input-group input-group-lg">
+                <span class="input-group-text"><i class="bi bi-person-badge"></i></span>
+                <input type="text" class="form-control" id="heroInput" placeholder="输入英雄名称，如：亚瑟、妲己、后羿...">
+                <button class="btn btn-primary" type="button" onclick="searchHero()">
+                    <i class="bi bi-search"></i> 查询
+                </button>
+            </div>
+            <div class="form-text mt-2">
+                <i class="bi bi-info-circle"></i> 支持模糊搜索，输入部分名称即可
+            </div>
+        </div>
+    </div>
+
+    <!-- 搜索结果 -->
+    <div id="searchResults" style="display: none;">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h4 class="mb-0">查询结果: <span id="heroName" class="text-primary"></span></h4>
+            <span class="badge bg-success fs-6" id="totalCount">共 0 个区服</span>
+        </div>
+
+        <!-- 结果列表 -->
+        <div id="resultsList">
+            <!-- 动态生成 -->
+        </div>
+
+        <!-- 无结果提示 -->
+        <div id="noResults" class="alert alert-info" style="display: none;">
+            <i class="bi bi-info-circle"></i> 未找到拥有该英雄的记录
+        </div>
+    </div>
+
+    <!-- 快捷选择 -->
+    <div class="mt-5">
+        <h5 class="mb-3">热门英雄</h5>
+        <div class="d-flex flex-wrap gap-2">
+            <button class="btn btn-outline-primary btn-sm" onclick="quickSearch('亚瑟')">亚瑟</button>
+            <button class="btn btn-outline-primary btn-sm" onclick="quickSearch('妲己')">妲己</button>
+            <button class="btn btn-outline-primary btn-sm" onclick="quickSearch('后羿')">后羿</button>
+            <button class="btn btn-outline-primary btn-sm" onclick="quickSearch('安琪拉')">安琪拉</button>
+            <button class="btn btn-outline-primary btn-sm" onclick="quickSearch('鲁班七号')">鲁班七号</button>
+            <button class="btn btn-outline-primary btn-sm" onclick="quickSearch('赵云')">赵云</button>
+            <button class="btn btn-outline-primary btn-sm" onclick="quickSearch('孙悟空')">孙悟空</button>
+            <button class="btn btn-outline-primary btn-sm" onclick="quickSearch('李白')">李白</button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// 回车键触发搜索
+document.getElementById('heroInput').addEventListener('keypress', function(e) {
+    if (e.key === 'Enter') {
+        searchHero();
+    }
+});
+
+// 快捷搜索
+function quickSearch(heroName) {
+    document.getElementById('heroInput').value = heroName;
+    searchHero();
+}
+
+// 搜索英雄
+async function searchHero() {
+    const heroName = document.getElementById('heroInput').value.trim();
+    if (!heroName) {
+        alert('请输入英雄名称');
+        return;
+    }
+
+    try {
+        const response = await fetch(`/api/search/hero?hero=${encodeURIComponent(heroName)}`);
+        const data = await response.json();
+
+        if (data.success) {
+            displayResults(data.heroName, data.results);
+        } else {
+            alert(data.error || '查询失败');
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        alert('查询失败，请重试');
+    }
+}
+
+// 显示结果
+function displayResults(heroName, results) {
+    const searchResults = document.getElementById('searchResults');
+    const heroNameSpan = document.getElementById('heroName');
+    const totalCount = document.getElementById('totalCount');
+    const resultsList = document.getElementById('resultsList');
+    const noResults = document.getElementById('noResults');
+
+    searchResults.style.display = 'block';
+    heroNameSpan.textContent = heroName;
+
+    if (results.length === 0) {
+        totalCount.textContent = '共 0 个区服';
+        resultsList.innerHTML = '';
+        noResults.style.display = 'block';
+        return;
+    }
+
+    noResults.style.display = 'none';
+    
+    // 统计区服数量
+    let regionCount = 0;
+    results.forEach(account => {
+        regionCount += account.regions.length;
+    });
+    totalCount.textContent = `共 ${regionCount} 个区服`;
+
+    // 渲染结果
+    resultsList.innerHTML = results.map(account => `
+        <div class="card mb-3">
+            <div class="card-header bg-light">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h5 class="mb-0">
+                            <i class="bi bi-controller"></i> ${account.accountName}
+                            <span class="badge bg-secondary ms-2">${account.loginType}</span>
+                            <span class="badge bg-info ms-1">${account.platform}</span>
+                        </h5>
+                    </div>
+                    <span class="badge bg-primary">${account.regions.length} 个区服</span>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="row g-2">
+                    ${account.regions.map(region => `
+                        <div class="col-md-4 col-sm-6">
+                            <div class="d-flex align-items-center p-2 bg-light rounded">
+                                <i class="bi bi-geo-alt-fill text-primary me-2"></i>
+                                <span>${region.regionName}</span>
+                                <span class="badge bg-success ms-auto">已拥有</span>
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+        </div>
+    `).join('');
+
+    // 滚动到结果区域
+    searchResults.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+</script>
+{% endblock %}

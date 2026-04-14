@@ -387,6 +387,80 @@ def change_password():
     return jsonify({'success': True})
 
 
+# ==================== 英雄查询功能 ====================
+
+@main_bp.route('/hero-search')
+@login_required
+def hero_search():
+    """英雄查询页面"""
+    return render_template('hero_search.html')
+
+
+@main_bp.route('/api/search/hero')
+@login_required
+def api_search_hero_ownership():
+    """查询英雄拥有情况API
+    
+    查询当前用户的所有账号和区服中，哪些已拥有指定英雄
+    """
+    hero_name = request.args.get('hero', '').strip()
+    
+    if not hero_name:
+        return jsonify({'success': False, 'error': '请输入英雄名称'}), 400
+    
+    # 查找匹配的英雄（支持模糊搜索）
+    hero = Hero.query.filter(Hero.name.like(f'%{hero_name}%')).first()
+    
+    if not hero:
+        return jsonify({
+            'success': True,
+            'heroName': hero_name,
+            'results': []
+        })
+    
+    # 查询当前用户的所有账号
+    accounts = Account.query.filter_by(user_id=current_user.id).order_by(Account.sort_order).all()
+    
+    results = []
+    
+    for account in accounts:
+        # 查询该账号下拥有此英雄的区服
+        account_regions = []
+        
+        # 获取该账号的所有区服
+        regions = Region.query.filter_by(account_id=account.id).order_by(Region.sort_order).all()
+        
+        for region in regions:
+            # 检查是否拥有该英雄
+            ownership = HeroOwnership.query.filter_by(
+                account_id=account.id,
+                region_id=region.id,
+                hero_name=hero.name
+            ).first()
+            
+            if ownership:
+                account_regions.append({
+                    'regionId': region.id,
+                    'regionName': region.name
+                })
+        
+        # 如果该账号下有区服拥有此英雄，添加到结果
+        if account_regions:
+            results.append({
+                'accountId': account.id,
+                'accountName': account.name,
+                'loginType': account.get_login_type_display(),
+                'platform': account.get_platform_display(),
+                'regions': account_regions
+            })
+    
+    return jsonify({
+        'success': True,
+        'heroName': hero.name,
+        'results': results
+    })
+
+
 # ==================== 错误处理 ====================
 
 @main_bp.route('/favicon.ico')
