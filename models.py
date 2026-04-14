@@ -93,6 +93,14 @@ class Account(db.Model):
         }
         return display_names.get(self.login_type, self.login_type)
     
+    def get_platform_display(self):
+        """获取设备平台的显示名称"""
+        display_names = {
+            'android': '安卓',
+            'ios': '苹果'
+        }
+        return display_names.get(self.platform, self.platform)
+    
     def to_dict(self):
         return {
             'id': self.id,
