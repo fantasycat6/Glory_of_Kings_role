@@ -6,22 +6,24 @@
 <div class="container mt-4">
     <h2 class="mb-4">备份管理</h2>
     
+    <!-- 英雄数据备份 -->
     <div class="row mb-4">
         <div class="col-md-6">
             <div class="card">
-                <div class="card-header">
-                    <h5 class="mb-0">备份操作</h5>
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0"><i class="bi bi-file-earmark-json"></i> 英雄数据备份</h5>
                 </div>
                 <div class="card-body">
+                    <p class="text-muted small">备份英雄列表数据，用于数据迁移或恢复英雄配置</p>
                     <div class="d-grid gap-2">
                         <button class="btn btn-primary" onclick="createBackup()">
-                            <i class="bi bi-plus-lg"></i> 创建备份
+                            <i class="bi bi-plus-lg"></i> 创建数据备份
                         </button>
                         <button class="btn btn-success" onclick="exportBackup()">
-                            <i class="bi bi-download"></i> 导出备份文件
+                            <i class="bi bi-download"></i> 导出数据备份
                         </button>
                         <button class="btn btn-info" onclick="document.getElementById('importFile').click()">
-                            <i class="bi bi-upload"></i> 导入备份
+                            <i class="bi bi-upload"></i> 导入数据备份
                         </button>
                         <input type="file" id="importFile" accept=".json" style="display: none;" onchange="importBackup(this)">
                     </div>
@@ -30,15 +32,25 @@
         </div>
         <div class="col-md-6">
             <div class="card">
-                <div class="card-header">
-                    <h5 class="mb-0">导入说明</h5>
+                <div class="card-header bg-dark text-white">
+                    <h5 class="mb-0"><i class="bi bi-database"></i> 数据库备份</h5>
                 </div>
                 <div class="card-body">
-                    <ul class="mb-0">
-                        <li>支持导入从本系统导出的JSON备份文件</li>
-                        <li>合并模式：跳过已存在的英雄，添加新英雄</li>
-                        <li>覆盖模式：清空现有数据后导入，保留用户拥有记录</li>
-                    </ul>
+                    <p class="text-muted small">备份完整数据库文件，用于网站服务迁移或整机备份</p>
+                    <div class="d-grid gap-2">
+                        <button class="btn btn-dark" onclick="createDbBackup()">
+                            <i class="bi bi-plus-lg"></i> 创建数据库备份
+                        </button>
+                        <button class="btn btn-outline-dark" onclick="document.getElementById('importDbFile').click()">
+                            <i class="bi bi-upload"></i> 导入数据库备份
+                        </button>
+                        <input type="file" id="importDbFile" accept=".db" style="display: none;" onchange="importDbBackup(this)">
+                    </div>
+                    <hr>
+                    <p class="text-warning small mb-0">
+                        <i class="bi bi-exclamation-triangle"></i> 
+                        数据库恢复会完全替换当前所有数据，请谨慎操作！
+                    </p>
                 </div>
             </div>
         </div>
@@ -53,7 +65,8 @@
                         <tr>
                             <th>文件名</th>
                             <th>大小</th>
-                            <th>类型</th>
+                            <th>文件类型</th>
+                            <th>备份类型</th>
                             <th>描述</th>
                             <th>创建时间</th>
                             <th>操作</th>
@@ -126,24 +139,45 @@ async function loadBackups() {
 function renderBackups(backups) {
     const tbody = document.getElementById('backupTable');
     if (backups.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted">暂无备份记录</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted">暂无备份记录</td></tr>';
         return;
     }
     
-    tbody.innerHTML = backups.map(backup => `
+    tbody.innerHTML = backups.map(backup => {
+        const fileTypeBadge = backup.file_type === 'database' 
+            ? '<span class="badge bg-dark">数据库</span>' 
+            : '<span class="badge bg-info">数据</span>';
+        
+        const backupTypeBadge = backup.backup_type === 'manual' 
+            ? '<span class="badge bg-primary">手动</span>' 
+            : backup.backup_type === 'auto'
+            ? '<span class="badge bg-secondary">自动</span>'
+            : '<span class="badge bg-warning">导入</span>';
+        
+        // 根据文件类型显示不同的操作
+        const restoreBtn = backup.file_type === 'database'
+            ? `<button class="btn btn-sm btn-outline-danger" onclick="restoreDbBackup(${backup.id})">恢复</button>`
+            : `<button class="btn btn-sm btn-outline-success" onclick="restoreBackup(${backup.id})">恢复</button>`;
+        
+        const downloadBtn = backup.file_type === 'database'
+            ? `<button class="btn btn-sm btn-outline-dark" onclick="downloadDbBackup(${backup.id})">下载</button>`
+            : `<button class="btn btn-sm btn-outline-primary" onclick="downloadBackup(${backup.id})">下载</button>`;
+        
+        return `
         <tr>
             <td>${backup.filename}</td>
             <td>${backup.file_size_formatted}</td>
-            <td><span class="badge bg-${backup.backup_type === 'manual' ? 'primary' : 'secondary'}">${backup.backup_type === 'manual' ? '手动' : '自动'}</span></td>
+            <td>${fileTypeBadge}</td>
+            <td>${backupTypeBadge}</td>
             <td>${backup.description || '-'}</td>
             <td>${backup.created_at_formatted}</td>
             <td>
-                <button class="btn btn-sm btn-outline-primary" onclick="downloadBackup(${backup.id})">下载</button>
-                <button class="btn btn-sm btn-outline-success" onclick="restoreBackup(${backup.id})">恢复</button>
+                ${downloadBtn}
+                ${restoreBtn}
                 <button class="btn btn-sm btn-outline-danger" onclick="deleteBackup(${backup.id})">删除</button>
             </td>
         </tr>
-    `).join('');
+    `}).join('');
 }
 
 async function createBackup() {
@@ -259,6 +293,92 @@ async function deleteBackup(id) {
     } catch (error) {
         console.error('Error:', error);
         alert('删除失败，请重试');
+    }
+}
+
+// ==================== 数据库备份操作 ====================
+
+async function createDbBackup() {
+    if (!confirm('确定要创建数据库备份吗？')) return;
+    
+    try {
+        const response = await fetch('/api/admin/dbbackup/create', {
+            method: 'POST'
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            alert('数据库备份创建成功：' + data.filename);
+            loadBackups();
+        } else {
+            alert(data.error || '创建失败');
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        alert('创建失败，请重试');
+    }
+}
+
+async function importDbBackup(input) {
+    const file = input.files[0];
+    if (!file) return;
+    
+    if (!confirm(`确定要导入数据库备份 "${file.name}" 吗？\n\n注意：导入后需要在备份列表中手动恢复才能生效。`)) {
+        input.value = '';
+        return;
+    }
+    
+    const formData = new FormData();
+    formData.append('file', file);
+    
+    try {
+        const response = await fetch('/api/admin/dbbackup/import', {
+            method: 'POST',
+            body: formData
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            alert('数据库备份导入成功：' + data.filename);
+            loadBackups();
+        } else {
+            alert(data.error || '导入失败');
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        alert('导入失败，请重试');
+    }
+    
+    input.value = '';
+}
+
+function downloadDbBackup(id) {
+    window.location.href = `/api/admin/dbbackup/${id}/download`;
+}
+
+async function restoreDbBackup(id) {
+    if (!confirm('警告：确定要从这个数据库备份恢复吗？\n\n当前数据库将被完全替换，所有现有数据（用户、账号、英雄等）都将被覆盖！\n\n恢复后需要重新登录系统。')) return;
+    
+    if (!confirm('再次确认：您真的确定要恢复数据库吗？此操作不可撤销！')) return;
+    
+    try {
+        const response = await fetch(`/api/admin/dbbackup/${id}/restore`, {
+            method: 'POST'
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            alert(data.message + '\n\n系统将跳转到登录页面...');
+            window.location.href = '/auth/login';
+        } else {
+            alert(data.error || '恢复失败');
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        alert('恢复失败，请重试');
     }
 }
 </script>

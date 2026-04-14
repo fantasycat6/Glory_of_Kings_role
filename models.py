@@ -289,6 +289,7 @@ class BackupFile(db.Model):
     filepath = db.Column(db.String(500), nullable=False)
     file_size = db.Column(db.Integer, nullable=True)
     backup_type = db.Column(db.String(20), default='manual')  # manual / auto
+    file_type = db.Column(db.String(20), default='json')  # json / database
     description = db.Column(db.String(200), nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.now)
     
@@ -310,6 +311,7 @@ class BackupFile(db.Model):
             'file_size': self.file_size,
             'file_size_formatted': self.format_size(),
             'backup_type': self.backup_type,
+            'file_type': self.file_type,
             'description': self.description,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'created_at_formatted': self.created_at.strftime('%Y-%m-%d %H:%M') if self.created_at else '-'

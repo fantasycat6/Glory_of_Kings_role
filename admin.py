@@ -1,7 +1,7 @@
 """
 管理后台蓝图 - 用户管理、英雄管理、备份管理
 """
-from flask import Blueprint, render_template, jsonify, request, redirect, url_for, flash, Response, send_file
+from flask import Blueprint, render_template, jsonify, request, redirect, url_for, flash, Response, send_file, current_app
 from flask_login import login_required, current_user
 from functools import wraps
 from models import db, User, Account, Region, Hero, HeroOwnership, BackupFile, load_heroes_from_json, load_hero_images_from_json
@@ -9,6 +9,7 @@ import json
 import os
 from datetime import datetime
 from pathlib import Path
+import shutil
 
 admin_bp = Blueprint('admin', __name__)
 
@@ -424,7 +425,8 @@ def api_create_backup():
         filepath=str(filepath),
         file_size=filepath.stat().st_size,
         backup_type='manual',
-        description='手动备份'
+        file_type='json',
+        description='英雄数据备份'
     )
     db.session.add(backup_record)
     db.session.commit()
@@ -719,3 +721,202 @@ def api_delete_backup(backup_id):
     db.session.commit()
     
     return jsonify({'success': True, 'message': '备份已删除'})
+
+
+# ==================== 数据库备份管理 ====================
+
+@admin_bp.route('/api/admin/dbbackup/create', methods=['POST'])
+@login_required
+@admin_required
+def api_create_db_backup():
+    """创建数据库备份"""
+    try:
+        from config import config
+        
+        # 获取当前数据库路径
+        app = current_app
+        db_path = app.config.get('SQLITE_PATH', os.path.join(BASE_DIR, 'data', 'wzry.db'))
+        
+        if not os.path.exists(db_path):
+            return jsonify({'success': False, 'error': '数据库文件不存在'}), 404
+        
+        # 创建备份目录
+        backup_dir = BASE_DIR / 'backup'
+        backup_dir.mkdir(exist_ok=True)
+        
+        # 生成备份文件名
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        filename = f'wzry_db_backup_{timestamp}.db'
+        filepath = backup_dir / filename
+        
+        # 复制数据库文件
+        import shutil
+        shutil.copy2(db_path, filepath)
+        
+        # 记录到数据库
+        backup_record = BackupFile(
+            filename=filename,
+            filepath=str(filepath),
+            file_size=filepath.stat().st_size,
+            backup_type='manual',
+            file_type='database',
+            description='数据库完整备份'
+        )
+        db.session.add(backup_record)
+        db.session.commit()
+        
+        return jsonify({
+            'success': True, 
+            'message': '数据库备份创建成功',
+            'filename': filename,
+            'backup': backup_record.to_dict()
+        })
+    except Exception as e:
+        print(f"创建数据库备份错误: {e}")
+        return jsonify({'success': False, 'error': f'创建备份失败: {str(e)}'}), 500
+
+
+@admin_bp.route('/api/admin/dbbackup/<int:backup_id>/download', methods=['GET'])
+@login_required
+@admin_required
+def api_download_db_backup(backup_id):
+    """下载数据库备份"""
+    backup = BackupFile.query.get_or_404(backup_id)
+    
+    if backup.file_type != 'database':
+        return jsonify({'success': False, 'error': '不是数据库备份文件'}), 400
+    
+    if not os.path.exists(backup.filepath):
+        return jsonify({'success': False, 'error': '备份文件不存在'}), 404
+    
+    return send_file(
+        backup.filepath,
+        as_attachment=True,
+        download_name=backup.filename,
+        mimetype='application/x-sqlite3'
+    )
+
+
+@admin_bp.route('/api/admin/dbbackup/import', methods=['POST'])
+@login_required
+@admin_required
+def api_import_db_backup():
+    """导入数据库备份（上传到备份目录，不恢复）"""
+    try:
+        if 'file' not in request.files:
+            return jsonify({'success': False, 'error': '没有上传文件'}), 400
+        
+        file = request.files['file']
+        if file.filename == '':
+            return jsonify({'success': False, 'error': '没有选择文件'}), 400
+        
+        # 检查文件扩展名
+        if not file.filename.endswith('.db'):
+            return jsonify({'success': False, 'error': '只支持 .db 格式的数据库文件'}), 400
+        
+        # 创建备份目录
+        backup_dir = BASE_DIR / 'backup'
+        backup_dir.mkdir(exist_ok=True)
+        
+        # 保存文件
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        filename = f"imported_{timestamp}_{file.filename}"
+        filepath = backup_dir / filename
+        file.save(filepath)
+        
+        # 验证是否是有效的SQLite数据库
+        try:
+            import sqlite3
+            conn = sqlite3.connect(str(filepath))
+            cursor = conn.cursor()
+            # 检查是否有users表（基本验证）
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='users'")
+            if not cursor.fetchone():
+                conn.close()
+                os.remove(filepath)
+                return jsonify({'success': False, 'error': '无效的数据库文件：缺少必要的表结构'}), 400
+            conn.close()
+        except Exception as e:
+            if os.path.exists(filepath):
+                os.remove(filepath)
+            return jsonify({'success': False, 'error': f'无效的数据库文件: {str(e)}'}), 400
+        
+        # 记录到数据库
+        backup_record = BackupFile(
+            filename=filename,
+            filepath=str(filepath),
+            file_size=filepath.stat().st_size,
+            backup_type='imported',
+            file_type='database',
+            description='导入的数据库备份'
+        )
+        db.session.add(backup_record)
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': '数据库备份导入成功',
+            'filename': filename,
+            'backup': backup_record.to_dict()
+        })
+    except Exception as e:
+        print(f"导入数据库备份错误: {e}")
+        return jsonify({'success': False, 'error': f'导入失败: {str(e)}'}), 500
+
+
+@admin_bp.route('/api/admin/dbbackup/<int:backup_id>/restore', methods=['POST'])
+@login_required
+@admin_required
+def api_restore_db_backup(backup_id):
+    """恢复数据库备份（会覆盖当前数据库）"""
+    try:
+        backup = BackupFile.query.get_or_404(backup_id)
+        
+        if backup.file_type != 'database':
+            return jsonify({'success': False, 'error': '不是数据库备份文件'}), 400
+        
+        if not os.path.exists(backup.filepath):
+            return jsonify({'success': False, 'error': '备份文件不存在'}), 404
+        
+        # 获取当前数据库路径
+        app = current_app
+        db_path = app.config.get('SQLITE_PATH', os.path.join(BASE_DIR, 'data', 'wzry.db'))
+        
+        # 先备份当前数据库（以防万一）
+        backup_dir = BASE_DIR / 'backup'
+        backup_dir.mkdir(exist_ok=True)
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        auto_backup_filename = f'auto_backup_before_restore_{timestamp}.db'
+        auto_backup_path = backup_dir / auto_backup_filename
+        
+        import shutil
+        if os.path.exists(db_path):
+            shutil.copy2(db_path, auto_backup_path)
+            
+            # 记录自动备份
+            auto_backup_record = BackupFile(
+                filename=auto_backup_filename,
+                filepath=str(auto_backup_path),
+                file_size=auto_backup_path.stat().st_size,
+                backup_type='auto',
+                file_type='database',
+                description='恢复前自动备份'
+            )
+            db.session.add(auto_backup_record)
+        
+        # 关闭数据库连接
+        db.session.remove()
+        
+        # 复制备份文件到数据库位置
+        shutil.copy2(backup.filepath, db_path)
+        
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': '数据库恢复成功，请重新登录系统',
+            'auto_backup': auto_backup_filename if os.path.exists(auto_backup_path) else None
+        })
+    except Exception as e:
+        print(f"恢复数据库备份错误: {e}")
+        return jsonify({'success': False, 'error': f'恢复失败: {str(e)}'}), 500
