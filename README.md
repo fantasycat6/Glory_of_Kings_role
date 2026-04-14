@@ -18,11 +18,16 @@
 - 🔍 **英雄搜索筛选** - 按名称搜索，按职业筛选
 - ✨ **批量操作** - 支持多选、框选、全选/取消全选
 - 🖼️ **英雄头像展示** - 使用官方英雄头像
+- 🔎 **英雄查询** - 查询特定英雄在哪些账号/区服中已拥有
+- 🔄 **拖动排序** - 账号和区服支持长按拖动排序
+- ✏️ **编辑功能** - 账号和区服支持编辑名称、登录方式、设备类型
 
 ### 管理后台
 - 👥 **用户管理** - 用户增删改、密码重置（带密码显示切换）
-- 🦸 **英雄管理** - 英雄增删改、分页展示（每页10条）、职业多选、默认英雄设置
-- 💾 **数据备份** - 创建备份、导出、导入、恢复、删除备份
+- 🦸 **英雄管理** - 英雄增删改、分页展示（每页10条）、职业多选、按拼音排序、默认英雄优先显示
+- 💾 **数据备份** - 英雄数据备份：创建、导出、导入、恢复、删除
+- 🗄️ **数据库备份** - 完整数据库备份：创建、导出、导入、恢复、删除（支持服务迁移）
+- 🧹 **自动清理** - 自动备份只保留最近5个，防止磁盘空间无限增长
 - 📈 **系统概览** - 用户统计、英雄统计、备份管理
 
 ## 🚀 快速开始
@@ -144,7 +149,9 @@ Glory_of_Kings_role/
 
 ## 💾 数据备份
 
-### 支持的操作
+### 英雄数据备份（JSON格式）
+用于备份和恢复英雄基础数据，适合日常数据维护。
+
 | 操作 | 说明 |
 |------|------|
 | 创建备份 | 在服务器本地创建 JSON 格式备份 |
@@ -153,9 +160,30 @@ Glory_of_Kings_role/
 | 下载备份 | 下载备份文件到本地 |
 | 删除备份 | 删除服务器上的备份文件 |
 
-### 恢复模式
+#### 恢复模式
 - **合并模式**: 保留现有英雄，仅添加备份中不存在的英雄
 - **覆盖模式**: 删除所有现有英雄，完全使用备份数据（保留用户收集记录）
+
+### 数据库备份（SQLite格式）⭐ 新增
+用于完整备份整个数据库，适合服务迁移和灾难恢复。
+
+| 操作 | 说明 |
+|------|------|
+| 创建备份 | 复制当前数据库文件作为备份 |
+| 导入备份 | 上传 .db 文件到备份目录 |
+| 恢复备份 | 用备份文件完全替换当前数据库（⚠️ 会覆盖所有数据）|
+| 下载备份 | 下载数据库备份文件 |
+| 删除备份 | 删除数据库备份文件 |
+
+#### 自动备份策略
+- 执行恢复/导入操作前，系统会自动创建当前数据库的备份
+- 自动备份只保留最近 **5个**，旧的自动备份会自动清理
+- 手动创建的备份不受数量限制
+
+#### 使用场景
+1. **服务迁移**: 将数据库备份下载，上传到新的服务器恢复
+2. **灾难恢复**: 数据库损坏时从备份恢复
+3. **数据回滚**: 误操作后恢复到之前的状态
 
 ## 🔌 API 接口
 
@@ -171,27 +199,52 @@ Glory_of_Kings_role/
 - `POST /api/accounts/<id>/heroes/batch` - 批量操作英雄
 
 ### 账号相关
-- `GET /api/accounts` - 获取用户所有游戏账号
+- `GET /api/accounts` - 获取用户所有游戏账号（按排序顺序）
 - `POST /api/accounts` - 创建游戏账号
 - `PUT /api/accounts/<id>` - 更新游戏账号
 - `DELETE /api/accounts/<id>` - 删除游戏账号
+- `POST /api/accounts/reorder` - 更新账号排序顺序
+
+### 区服相关
+- `GET /api/accounts/<id>/regions` - 获取账号的所有区服（按排序顺序）
+- `POST /api/accounts/<id>/regions` - 创建区服
+- `PUT /api/accounts/<id>/regions/<rid>` - 更新区服
+- `DELETE /api/accounts/<id>/regions/<rid>` - 删除区服
+- `POST /api/accounts/<id>/regions/reorder` - 更新区服排序顺序
+
+### 英雄查询
+- `GET /api/search/hero?hero=英雄名` - 查询哪些账号/区服拥有该英雄（支持模糊搜索）
 
 ### 管理后台
+
+#### 用户管理
 - `GET /api/admin/users` - 获取用户列表
 - `POST /api/admin/users` - 创建用户
 - `PUT /api/admin/users/<id>` - 更新用户
 - `DELETE /api/admin/users/<id>` - 删除用户
 - `POST /api/admin/users/<id>/reset-password` - 重置用户密码
-- `GET /api/admin/heroes` - 获取英雄列表（分页）
+
+#### 英雄管理
+- `GET /api/admin/heroes` - 获取英雄列表（分页、排序）
 - `POST /api/admin/heroes` - 添加英雄
 - `PUT /api/admin/heroes/<name>` - 更新英雄
 - `DELETE /api/admin/heroes/<name>` - 删除英雄
+
+#### 英雄数据备份（JSON）
 - `GET /api/admin/backup/list` - 获取备份列表
 - `POST /api/admin/backup/create` - 创建备份
 - `GET /api/admin/backup/download/<id>` - 下载备份
 - `POST /api/admin/backup/restore/<id>` - 恢复备份
 - `POST /api/admin/backup/import` - 导入备份
 - `DELETE /api/admin/backup/<id>` - 删除备份
+- `POST /api/admin/backup/scan` - 扫描备份文件并同步到数据库
+- `POST /api/admin/backup/cleanup` - 清理旧自动备份（只保留最近5个）
+
+#### 数据库备份（SQLite）⭐ 新增
+- `POST /api/admin/dbbackup/create` - 创建数据库备份
+- `GET /api/admin/dbbackup/<id>/download` - 下载数据库备份
+- `POST /api/admin/dbbackup/<id>/restore` - 恢复数据库备份
+- `POST /api/admin/dbbackup/import` - 导入数据库备份文件
 
 ## 🔒 安全说明
 
