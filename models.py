@@ -85,12 +85,21 @@ class Account(db.Model):
     regions = db.relationship('Region', backref='account', lazy=True, cascade='all, delete-orphan', order_by='Region.sort_order')
     hero_ownerships = db.relationship('HeroOwnership', backref='account', lazy=True, cascade='all, delete-orphan')
     
+    def get_login_type_display(self):
+        """获取登录类型的显示名称"""
+        display_names = {
+            'qq': 'QQ登录',
+            'wechat': '微信登录'
+        }
+        return display_names.get(self.login_type, self.login_type)
+    
     def to_dict(self):
         return {
             'id': self.id,
             'user_id': self.user_id,
             'name': self.name,
             'login_type': self.login_type,
+            'login_type_display': self.get_login_type_display(),
             'platform': self.platform,
             'created_at': self.created_at.isoformat() if self.created_at else None
         }
