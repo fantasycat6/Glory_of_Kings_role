@@ -293,6 +293,16 @@ class BackupFile(db.Model):
     description = db.Column(db.String(200), nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.now)
     
+    def get_absolute_path(self):
+        """获取绝对路径"""
+        from config import BASE_DIR
+        import os
+        # 如果已经是绝对路径，直接返回
+        if os.path.isabs(self.filepath):
+            return self.filepath
+        # 否则拼接为绝对路径
+        return os.path.join(BASE_DIR, self.filepath)
+    
     def format_size(self):
         """格式化文件大小"""
         if not self.file_size:

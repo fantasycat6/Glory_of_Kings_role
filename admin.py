@@ -420,11 +420,12 @@ def api_create_backup():
     with open(filepath, 'w', encoding='utf-8') as f:
         json.dump(backup_data, f, ensure_ascii=False, indent=2)
     
-    # 记录到数据库
+    # 记录到数据库（使用相对路径）
+    relative_path = os.path.join('backup', filename)
     backup_record = BackupFile(
         filename=filename,
-        filepath=str(filepath),
-        file_size=filepath.stat().st_size,
+        filepath=relative_path,
+        file_size=os.path.getsize(filepath),
         backup_type='manual',
         file_type='json',
         description='英雄数据备份'
@@ -564,12 +565,13 @@ def api_list_backups():
 def api_download_backup(backup_id):
     """下载备份文件"""
     backup = BackupFile.query.get_or_404(backup_id)
+    abs_path = backup.get_absolute_path()
     
-    if not os.path.exists(backup.filepath):
+    if not os.path.exists(abs_path):
         return jsonify({'success': False, 'error': '备份文件不存在'}), 404
     
     return send_file(
-        backup.filepath,
+        abs_path,
         as_attachment=True,
         download_name=backup.filename,
         mimetype='application/json'
@@ -583,12 +585,13 @@ def api_restore_backup(backup_id):
     """恢复备份"""
     try:
         backup = BackupFile.query.get_or_404(backup_id)
+        abs_path = backup.get_absolute_path()
 
-        if not os.path.exists(backup.filepath):
+        if not os.path.exists(abs_path):
             return jsonify({'success': False, 'error': '备份文件不存在'}), 404
 
         try:
-            with open(backup.filepath, 'r', encoding='utf-8') as f:
+            with open(abs_path, 'r', encoding='utf-8') as f:
                 backup_data = json.load(f)
         except Exception as e:
             return jsonify({'success': False, 'error': f'备份文件解析失败: {e}'}), 400
@@ -711,9 +714,10 @@ def api_delete_backup(backup_id):
         return jsonify({'success': True, 'message': '备份已删除'})
     
     # 删除文件
-    if os.path.exists(backup.filepath):
+    abs_path = backup.get_absolute_path()
+    if os.path.exists(abs_path):
         try:
-            os.remove(backup.filepath)
+            os.remove(abs_path)
         except Exception as e:
             return jsonify({'success': False, 'error': f'删除文件失败: {e}'}), 500
     
@@ -759,11 +763,14 @@ def api_scan_backups():
             else:
                 continue
             
+            # 使用相对路径存储
+            relative_path = os.path.join('backup', filename)
+            
             # 添加到数据库
             try:
                 backup_record = BackupFile(
                     filename=filename,
-                    filepath=filepath,
+                    filepath=relative_path,
                     file_size=os.path.getsize(filepath),
                     backup_type=backup_type,
                     file_type=file_type,
@@ -810,9 +817,10 @@ def api_cleanup_auto_backups():
         deleted_count = 0
         for backup in auto_backups[keep_count:]:
             # 删除文件
-            if os.path.exists(backup.filepath):
+            abs_path = backup.get_absolute_path()
+            if os.path.exists(abs_path):
                 try:
-                    os.remove(backup.filepath)
+                    os.remove(abs_path)
                 except Exception as e:
                     print(f"删除自动备份文件失败 {backup.filename}: {e}")
                     continue
@@ -849,9 +857,10 @@ def cleanup_old_auto_backups():
         deleted_count = 0
         for backup in auto_backups[keep_count:]:
             # 删除文件
-            if os.path.exists(backup.filepath):
+            abs_path = backup.get_absolute_path()
+            if os.path.exists(abs_path):
                 try:
-                    os.remove(backup.filepath)
+                    os.remove(abs_path)
                 except Exception as e:
                     print(f"删除自动备份文件失败 {backup.filename}: {e}")
                     continue
@@ -898,10 +907,11 @@ def api_create_db_backup():
         import shutil
         shutil.copy2(db_path, filepath)
         
-        # 记录到数据库
+        # 记录到数据库（使用相对路径）
+        relative_path = os.path.join('backup', filename)
         backup_record = BackupFile(
             filename=filename,
-            filepath=filepath,
+            filepath=relative_path,
             file_size=os.path.getsize(filepath),
             backup_type='manual',
             file_type='database',
@@ -927,15 +937,16 @@ def api_create_db_backup():
 def api_download_db_backup(backup_id):
     """下载数据库备份"""
     backup = BackupFile.query.get_or_404(backup_id)
+    abs_path = backup.get_absolute_path()
     
     if backup.file_type != 'database':
         return jsonify({'success': False, 'error': '不是数据库备份文件'}), 400
     
-    if not os.path.exists(backup.filepath):
+    if not os.path.exists(abs_path):
         return jsonify({'success': False, 'error': '备份文件不存在'}), 404
     
     return send_file(
-        backup.filepath,
+        abs_path,
         as_attachment=True,
         download_name=backup.filename,
         mimetype='application/x-sqlite3'
@@ -986,10 +997,11 @@ def api_import_db_backup():
                 os.remove(filepath)
             return jsonify({'success': False, 'error': f'无效的数据库文件: {str(e)}'}), 400
         
-        # 记录到数据库
+        # 记录到数据库（使用相对路径）
+        relative_path = os.path.join('backup', filename)
         backup_record = BackupFile(
             filename=filename,
-            filepath=filepath,
+            filepath=relative_path,
             file_size=os.path.getsize(filepath),
             backup_type='imported',
             file_type='database',
@@ -1016,11 +1028,12 @@ def api_restore_db_backup(backup_id):
     """恢复数据库备份（会覆盖当前数据库）"""
     try:
         backup = BackupFile.query.get_or_404(backup_id)
+        abs_path = backup.get_absolute_path()
         
         if backup.file_type != 'database':
             return jsonify({'success': False, 'error': '不是数据库备份文件'}), 400
         
-        if not os.path.exists(backup.filepath):
+        if not os.path.exists(abs_path):
             return jsonify({'success': False, 'error': '备份文件不存在'}), 404
         
         # 获取当前数据库路径
@@ -1038,10 +1051,11 @@ def api_restore_db_backup(backup_id):
         if os.path.exists(db_path):
             shutil.copy2(db_path, auto_backup_path)
             
-            # 记录自动备份
+            # 记录自动备份（使用相对路径）
+            auto_backup_relative = os.path.join('backup', auto_backup_filename)
             auto_backup_record = BackupFile(
                 filename=auto_backup_filename,
-                filepath=auto_backup_path,
+                filepath=auto_backup_relative,
                 file_size=os.path.getsize(auto_backup_path),
                 backup_type='auto',
                 file_type='database',
@@ -1053,7 +1067,7 @@ def api_restore_db_backup(backup_id):
             cleanup_old_auto_backups()
         
         # 复制备份文件到数据库位置
-        shutil.copy2(backup.filepath, db_path)
+        shutil.copy2(abs_path, db_path)
         
         db.session.commit()
         

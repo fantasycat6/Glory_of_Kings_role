@@ -105,11 +105,14 @@ def scan_backup_files(app):
         else:
             continue
         
+        # 使用相对路径存储
+        relative_path = os.path.join('backup', filename)
+        
         # 添加到数据库
         try:
             backup_record = BackupFile(
                 filename=filename,
-                filepath=filepath,
+                filepath=relative_path,
                 file_size=os.path.getsize(filepath),
                 backup_type=backup_type,
                 file_type=file_type,
