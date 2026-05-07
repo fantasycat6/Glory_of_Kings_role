@@ -1029,28 +1029,28 @@ def api_restore_db_backup(backup_id):
     try:
         backup = BackupFile.query.get_or_404(backup_id)
         abs_path = backup.get_absolute_path()
-        
+
         if backup.file_type != 'database':
             return jsonify({'success': False, 'error': '不是数据库备份文件'}), 400
-        
+
         if not os.path.exists(abs_path):
             return jsonify({'success': False, 'error': '备份文件不存在'}), 404
-        
+
         # 获取当前数据库路径
         app = current_app
         db_path = app.config.get('SQLITE_PATH', os.path.join(BASE_DIR, 'data', 'wzry.db'))
-        
+
         # 先备份当前数据库（以防万一）
         backup_dir = os.path.join(BASE_DIR, 'backup')
         os.makedirs(backup_dir, exist_ok=True)
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
         auto_backup_filename = f'auto_backup_before_restore_{timestamp}.db'
         auto_backup_path = os.path.join(backup_dir, auto_backup_filename)
-        
+
         import shutil
         if os.path.exists(db_path):
             shutil.copy2(db_path, auto_backup_path)
-            
+
             # 记录自动备份（使用相对路径）
             auto_backup_relative = os.path.join('backup', auto_backup_filename)
             auto_backup_record = BackupFile(
@@ -1062,20 +1062,25 @@ def api_restore_db_backup(backup_id):
                 description='恢复前自动备份'
             )
             db.session.add(auto_backup_record)
-            
+
             # 清理旧的自动备份（只保留最近5个）
             cleanup_old_auto_backups()
-        
+
+        # 关键：先关闭所有数据库连接，否则SQLite文件被占用无法真正替换
+        db.session.remove()
+        db.engine.dispose()
+
         # 复制备份文件到数据库位置
         shutil.copy2(abs_path, db_path)
-        
+
         db.session.commit()
-        
+
         return jsonify({
             'success': True,
             'message': '数据库恢复成功，请重新登录系统',
             'auto_backup': auto_backup_filename if os.path.exists(auto_backup_path) else None,
-            'need_rescan': True
+            'need_rescan': True,
+            'need_reload': True  # 标记需要重新加载应用
         })
     except Exception as e:
         print(f"恢复数据库备份错误: {e}")

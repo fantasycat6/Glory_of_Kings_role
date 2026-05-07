@@ -47,9 +47,13 @@
                         <input type="file" id="importDbFile" accept=".db" style="display: none;" onchange="importDbBackup(this)">
                     </div>
                     <hr>
-                    <p class="text-warning small mb-0">
-                        <i class="bi bi-exclamation-triangle"></i> 
+                    <p class="text-warning small mb-1">
+                        <i class="bi bi-exclamation-triangle"></i>
                         数据库恢复会完全替换当前所有数据，请谨慎操作！
+                    </p>
+                    <p class="text-info small mb-0">
+                        <i class="bi bi-info-circle"></i>
+                        导入后需在下方备份列表中点击"恢复"才能生效
                     </p>
                 </div>
             </div>
@@ -378,7 +382,7 @@ async function importDbBackup(input) {
     const file = input.files[0];
     if (!file) return;
     
-    if (!confirm(`确定要导入数据库备份 "${file.name}" 吗？\n\n注意：导入后需要在备份列表中手动恢复才能生效。`)) {
+    if (!confirm(`确定要导入数据库备份 "${file.name}" 吗？`)) {
         input.value = '';
         return;
     }
