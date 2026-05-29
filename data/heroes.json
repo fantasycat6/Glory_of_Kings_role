@@ -5296,7 +5296,7 @@
     }
   ],
   "total_heroes": 130,
-  "heroDetailUrlTemplate": "https://pvp.qq.com/web201605/herodetail/{}.shtml",
+  "heroDetailUrlTemplate": "https://pvp.qq.com/web201605/herodetail/{pinyin}.shtml",
   "skin_image_base_urls": [
     "https://game-1255653016.file.myqcloud.com/manage/compress/custom_wzry_E1/{image_id}?imageMogr2/crop/120x120/gravity/center",
     "https://game-1255653016.file.myqcloud.com/manage/custom_wzry_E1/{image_id}.png?imageMogr2/crop/120x120/gravity/center",
