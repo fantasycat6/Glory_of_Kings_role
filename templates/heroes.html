@@ -6,34 +6,89 @@
 <style>
     .hero-card {
         cursor: pointer;
-        transition: all 0.2s;
+        transition: all 0.3s ease;
         user-select: none;
+        border-radius: 12px;
+        overflow: hidden;
     }
+    
     .hero-card:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        transform: translateY(-4px) scale(1.02);
+        box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
     }
+    
     .hero-card.owned {
-        border-color: #28a745;
-        background-color: #f8fff8;
+        border: 2px solid #10b981;
+        background: linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 100%);
     }
+    
     .hero-card.owned .owned-badge {
-        display: inline-block;
+        display: flex;
     }
+    
     .owned-badge {
         display: none;
         position: absolute;
-        top: 0;
-        right: 0;
-        font-size: 0.65rem;
-        padding: 0.2em 0.4em;
-        border-radius: 0 0.25rem 0 0.25rem;
+        top: 8px;
+        right: 8px;
+        font-size: 0.6rem;
+        padding: 2px 8px;
+        border-radius: 10px;
+        background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+        color: white;
         z-index: 10;
+        font-weight: 600;
+        box-shadow: 0 2px 8px rgba(16, 185, 129, 0.3);
     }
+    
     .stats-card {
         position: sticky;
         top: 20px;
+        border-radius: 16px;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        overflow: hidden;
     }
+    
+    .stats-card .card-header {
+        background: rgba(255, 255, 255, 0.1);
+        border: none;
+    }
+    
+    .stats-card .progress-bar {
+        background: rgba(255, 255, 255, 0.3);
+        font-weight: 600;
+    }
+    
+    .hero-image-container {
+        position: relative;
+        width: 100%;
+        padding-top: 100%;
+        background: linear-gradient(135deg, #f3f4f6 0%, #e5e7eb 100%);
+    }
+    
+    .hero-image-placeholder {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 2rem;
+        color: #9ca3af;
+    }
+    
+    .collection-progress {
+        font-size: 2.5rem;
+        font-weight: 700;
+        background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+    }
+    
     .role-filter .btn {
         margin-right: 5px;
         margin-bottom: 5px;
@@ -135,23 +190,23 @@
                      data-role="{{ hero.role }}">
                     <div class="card hero-card {{ 'owned' if is_owned else '' }}" 
                          data-hero-name="{{ hero.name }}">
-                        <div class="card-body text-center p-2 position-relative">
-                            <span class="badge bg-success owned-badge">已拥有</span>
-                            <div class="mb-2">
+                        <div class="card-body p-0 position-relative">
+                            <span class="owned-badge">✓ 已拥有</span>
+                            <div class="hero-image-container">
                                 {% if hero_image %}
                                 <a href="{{ hero_image.url }}" target="_blank" onclick="event.stopPropagation();">
-                                    <img src="{{ hero_image.image }}" alt="{{ hero.name }}" 
-                                         class="rounded-circle" style="width: 60px; height: 60px; object-fit: cover;">
+                                    <img src="{{ hero_image.image }}" alt="{{ hero.name }}" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover;">
                                 </a>
                                 {% else %}
-                                <div class="rounded-circle bg-secondary d-inline-flex align-items-center justify-content-center" 
-                                     style="width: 60px; height: 60px;">
-                                    <span class="text-white">{{ hero.name[0] }}</span>
+                                <div class="hero-image-placeholder">
+                                    <span>{{ hero.name[0] }}</span>
                                 </div>
                                 {% endif %}
                             </div>
-                            <h6 class="card-title mb-1">{{ hero.name }}</h6>
-                            <small class="text-muted">{{ hero.role }}</small>
+                            <div class="p-2 text-center">
+                                <h6 class="card-title mb-1 font-medium text-gray-800 truncate" title="{{ hero.name }}">{{ hero.name }}</h6>
+                                <small class="text-muted">{{ hero.role }}</small>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -163,30 +218,31 @@
         <div class="col-lg-3">
             <div class="card stats-card">
                 <div class="card-header">
-                    <h5 class="mb-0">收集统计</h5>
+                    <h5 class="mb-0">英雄收集统计</h5>
                 </div>
                 <div class="card-body">
-                    <div class="text-center mb-3">
-                        <h2 class="mb-0">
-                            <span id="ownedCount">{{ stats.owned }}</span> / {{ stats.total }}
-                        </h2>
-                        <p class="text-muted">已收集 / 总数</p>
+                    <div class="text-center mb-4">
+                        <div class="collection-progress">
+                            <span id="ownedCount">{{ stats.owned }}</span>
+                            <span class="text-white/70"> / {{ stats.total }}</span>
+                        </div>
+                        <p class="text-white/80 mb-0">已收集 / 总数</p>
                     </div>
                     
-                    <div class="progress mb-3">
-                        <div class="progress-bar bg-success" role="progressbar" 
+                    <div class="progress mb-4">
+                        <div class="progress-bar" role="progressbar" 
                              style="width: {{ stats.percentage }}%" 
                              id="progressBar">
                             {{ stats.percentage }}%
                         </div>
                     </div>
 
-                    <h6 class="mb-2">按职业分布</h6>
-                    <div id="roleStats">
+                    <h6 class="mb-3 text-white/90">按职业分布</h6>
+                    <div id="roleStats" style="max-height: 300px; overflow-y: auto;">
                         {% for role, data in stats.byRole.items() %}
-                        <div class="d-flex justify-content-between mb-1">
-                            <span>{{ role }}</span>
-                            <span>{{ data.owned }} / {{ data.total }}</span>
+                        <div class="d-flex justify-content-between mb-2">
+                            <span class="text-white/90">{{ role }}</span>
+                            <span class="text-white">{{ data.owned }} / {{ data.total }}</span>
                         </div>
                         {% endfor %}
                     </div>

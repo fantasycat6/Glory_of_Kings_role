@@ -24,6 +24,13 @@ class Config:
     SQLITE_PATH = os.environ.get('SQLITE_PATH', os.path.join(BASE_DIR, 'data', 'wzry.db'))
     SQLALCHEMY_DATABASE_URI = f'sqlite:///{SQLITE_PATH}'
     
+    # 皮肤图片基础URL配置
+    SKIN_IMAGE_BASE_URLS = [
+        "https://game-1255653016.file.myqcloud.com/manage/compress/custom_wzry_E1/{image_id}?imageMogr2/crop/120x120/gravity/center",
+        "https://game-1255653016.file.myqcloud.com/manage/custom_wzry_E1/{image_id}.png?imageMogr2/crop/120x120/gravity/center",
+        "https://game.gtimg.cn/images/yxzj/img201606/heroimg/{num1}/{num1}-smallskin-{num2}.jpg"
+    ]
+    
     # 调试模式配置
     @staticmethod
     def get_debug_mode():

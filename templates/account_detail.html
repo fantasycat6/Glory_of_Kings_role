@@ -83,14 +83,17 @@
                                 <h5 class="card-title mb-0 region-name">{{ region.name }}</h5>
                             </div>
                         </div>
-                        <div class="d-flex gap-2">
-                            <a href="{{ url_for('main.heroes', region_id=region.id) }}" class="btn btn-primary btn-sm flex-fill">
+                        <div class="d-flex gap-2 flex-wrap">
+                            <a href="{{ url_for('main.heroes', region_id=region.id) }}" class="btn btn-primary btn-sm">
                                 管理英雄
+                            </a>
+                            <a href="{{ url_for('main.skins', region_id=region.id) }}" class="btn btn-success btn-sm">
+                                管理皮肤
                             </a>
                             <button type="button" class="btn btn-outline-secondary btn-sm" onclick="editRegion({{ region.id }}, '{{ region.name }}')">
                                 编辑
                             </button>
-                            <form method="POST" action="{{ url_for('main.delete_region', region_id=region.id) }}" class="d-inline" onsubmit="return confirm('确定要删除这个区服吗？所有英雄数据也会被删除。')">
+                            <form method="POST" action="{{ url_for('main.delete_region', region_id=region.id) }}" class="d-inline" onsubmit="return confirm('确定要删除这个区服吗？所有英雄和皮肤数据也会被删除。')">
                                 <button type="submit" class="btn btn-outline-danger btn-sm">删除</button>
                             </form>
                         </div>

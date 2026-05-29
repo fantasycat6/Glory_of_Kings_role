@@ -1,42 +1,152 @@
 {% extends 'base.html' %}
 
-{% block title %}英雄查询 - 王者荣耀英雄统计{% endblock %}
+{% block title %}账户查询 - 王者荣耀英雄统计{% endblock %}
+
+{% block extra_css %}
+<style>
+    .search-section {
+        border-bottom: 2px solid #e5e7eb;
+        padding-bottom: 2rem;
+        margin-bottom: 2rem;
+    }
+    
+    .search-section:last-child {
+        border-bottom: none;
+    }
+    
+    .search-card {
+        border-left: 4px solid #667eea;
+    }
+    
+    .search-card.skin-search {
+        border-left-color: #10b981;
+    }
+    
+    .result-card {
+        transition: all 0.2s;
+    }
+    
+    .result-card:hover {
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    }
+    
+    .owned-badge {
+        background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+        color: white;
+    }
+    
+    .skin-item {
+        padding: 0.5rem;
+        background: #f8fafc;
+        border-radius: 0.5rem;
+        margin-bottom: 0.5rem;
+    }
+    
+    .skin-item.owned {
+        background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%);
+        border: 1px solid #10b981;
+    }
+    
+    .nav-tabs .nav-link {
+        border: none;
+        color: #6b7280;
+        font-weight: 500;
+    }
+    
+    .nav-tabs .nav-link.active {
+        color: #667eea;
+        border-bottom: 2px solid #667eea;
+        background: transparent;
+    }
+</style>
+{% endblock %}
 
 {% block content %}
 <div class="container mt-4">
-    <h2 class="mb-4"><i class="bi bi-search"></i> 英雄查询</h2>
+    <h2 class="mb-4"><i class="bi bi-search"></i> 账户查询</h2>
     
-    <div class="card mb-4">
-        <div class="card-body">
-            <p class="text-muted mb-3">输入英雄名称，查询您的哪些游戏账号和区服已拥有该英雄</p>
-            <div class="input-group input-group-lg">
-                <span class="input-group-text"><i class="bi bi-person-badge"></i></span>
-                <input type="text" class="form-control" id="heroInput" placeholder="输入英雄名称，如：亚瑟、妲己、后羿...">
-                <button class="btn btn-primary" type="button" onclick="searchHero()">
-                    <i class="bi bi-search"></i> 查询
-                </button>
+    <ul class="nav nav-tabs mb-4" id="searchTabs" role="tablist">
+        <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="hero-tab" data-bs-toggle="tab" data-bs-target="#hero-panel" type="button" role="tab">
+                <i class="bi bi-person-badge me-1"></i> 英雄查询
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="skin-tab" data-bs-toggle="tab" data-bs-target="#skin-panel" type="button" role="tab">
+                <i class="bi bi-palette me-1"></i> 皮肤查询
+            </button>
+        </li>
+    </ul>
+    
+    <div class="tab-content" id="searchTabsContent">
+        <!-- 英雄查询面板 -->
+        <div class="tab-pane fade show active" id="hero-panel" role="tabpanel" aria-labelledby="hero-tab">
+            <div class="card search-card mb-4">
+                <div class="card-body">
+                    <p class="text-muted mb-3">输入英雄名称，查询您的哪些游戏账号和区服已拥有该英雄</p>
+                    <div class="input-group input-group-lg">
+                        <span class="input-group-text"><i class="bi bi-person-badge"></i></span>
+                        <input type="text" class="form-control" id="heroInput" placeholder="输入英雄名称，如：亚瑟、妲己、后羿...">
+                        <button class="btn btn-primary" type="button" onclick="searchHero()">
+                            <i class="bi bi-search"></i> 查询
+                        </button>
+                    </div>
+                    <div class="form-text mt-2">
+                        <i class="bi bi-info-circle"></i> 支持模糊搜索，输入部分名称即可
+                    </div>
+                </div>
             </div>
-            <div class="form-text mt-2">
-                <i class="bi bi-info-circle"></i> 支持模糊搜索，输入部分名称即可
+
+            <!-- 英雄搜索结果 -->
+            <div id="heroSearchResults" style="display: none;">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h4 class="mb-0">查询结果: <span id="heroName" class="text-primary"></span></h4>
+                    <span class="badge bg-success fs-6" id="heroTotalCount">共 0 个区服</span>
+                </div>
+
+                <div id="heroResultsList">
+                    <!-- 动态生成 -->
+                </div>
+
+                <div id="heroNoResults" class="alert alert-info" style="display: none;">
+                    <i class="bi bi-info-circle"></i> 未找到拥有该英雄的记录
+                </div>
             </div>
         </div>
-    </div>
+        
+        <!-- 皮肤查询面板 -->
+        <div class="tab-pane fade" id="skin-panel" role="tabpanel" aria-labelledby="skin-tab">
+            <div class="card search-card skin-search mb-4">
+                <div class="card-body">
+                    <p class="text-muted mb-3">输入英雄名称或皮肤名称，查询您的哪些游戏账号和区服已拥有该皮肤</p>
+                    <div class="input-group input-group-lg">
+                        <span class="input-group-text"><i class="bi bi-palette"></i></span>
+                        <input type="text" class="form-control" id="skinInput" placeholder="输入英雄名称或皮肤名称，如：妲己、妲己-魅力维加斯...">
+                        <button class="btn btn-success" type="button" onclick="searchSkin()">
+                            <i class="bi bi-search"></i> 查询
+                        </button>
+                    </div>
+                    <div class="form-text mt-2">
+                        <i class="bi bi-info-circle"></i> 支持模糊搜索，输入部分名称即可
+                    </div>
+                </div>
+            </div>
 
-    <!-- 搜索结果 -->
-    <div id="searchResults" style="display: none;">
-        <div class="d-flex justify-content-between align-items-center mb-3">
-            <h4 class="mb-0">查询结果: <span id="heroName" class="text-primary"></span></h4>
-            <span class="badge bg-success fs-6" id="totalCount">共 0 个区服</span>
-        </div>
+            <!-- 皮肤搜索结果 -->
+            <div id="skinSearchResults" style="display: none;">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h4 class="mb-0">查询结果: <span id="skinName" class="text-success"></span></h4>
+                    <span class="badge bg-success fs-6" id="skinTotalCount">共 0 个区服</span>
+                </div>
 
-        <!-- 结果列表 -->
-        <div id="resultsList">
-            <!-- 动态生成 -->
-        </div>
+                <div id="skinResultsList">
+                    <!-- 动态生成 -->
+                </div>
 
-        <!-- 无结果提示 -->
-        <div id="noResults" class="alert alert-info" style="display: none;">
-            <i class="bi bi-info-circle"></i> 未找到拥有该英雄的记录
+                <div id="skinNoResults" class="alert alert-info" style="display: none;">
+                    <i class="bi bi-info-circle"></i> 未找到拥有该皮肤的记录
+                </div>
+            </div>
         </div>
     </div>
 
@@ -44,14 +154,28 @@
     <div class="mt-5">
         <h5 class="mb-3">热门英雄</h5>
         <div class="d-flex flex-wrap gap-2">
-            <button class="btn btn-outline-primary btn-sm" onclick="quickSearch('亚瑟')">亚瑟</button>
-            <button class="btn btn-outline-primary btn-sm" onclick="quickSearch('妲己')">妲己</button>
-            <button class="btn btn-outline-primary btn-sm" onclick="quickSearch('后羿')">后羿</button>
-            <button class="btn btn-outline-primary btn-sm" onclick="quickSearch('安琪拉')">安琪拉</button>
-            <button class="btn btn-outline-primary btn-sm" onclick="quickSearch('鲁班七号')">鲁班七号</button>
-            <button class="btn btn-outline-primary btn-sm" onclick="quickSearch('赵云')">赵云</button>
-            <button class="btn btn-outline-primary btn-sm" onclick="quickSearch('孙悟空')">孙悟空</button>
-            <button class="btn btn-outline-primary btn-sm" onclick="quickSearch('李白')">李白</button>
+            <button class="btn btn-outline-primary btn-sm" onclick="quickHeroSearch('亚瑟')">亚瑟</button>
+            <button class="btn btn-outline-primary btn-sm" onclick="quickHeroSearch('妲己')">妲己</button>
+            <button class="btn btn-outline-primary btn-sm" onclick="quickHeroSearch('后羿')">后羿</button>
+            <button class="btn btn-outline-primary btn-sm" onclick="quickHeroSearch('安琪拉')">安琪拉</button>
+            <button class="btn btn-outline-primary btn-sm" onclick="quickHeroSearch('鲁班七号')">鲁班七号</button>
+            <button class="btn btn-outline-primary btn-sm" onclick="quickHeroSearch('赵云')">赵云</button>
+            <button class="btn btn-outline-primary btn-sm" onclick="quickHeroSearch('孙悟空')">孙悟空</button>
+            <button class="btn btn-outline-primary btn-sm" onclick="quickHeroSearch('李白')">李白</button>
+        </div>
+    </div>
+    
+    <div class="mt-4">
+        <h5 class="mb-3">热门皮肤</h5>
+        <div class="d-flex flex-wrap gap-2">
+            <button class="btn btn-outline-success btn-sm" onclick="quickSkinSearch('凤求凰')">凤求凰</button>
+            <button class="btn btn-outline-success btn-sm" onclick="quickSkinSearch('至尊宝')">至尊宝</button>
+            <button class="btn btn-outline-success btn-sm" onclick="quickSkinSearch('千年之狐')">千年之狐</button>
+            <button class="btn btn-outline-success btn-sm" onclick="quickSkinSearch('紫霞仙子')">紫霞仙子</button>
+            <button class="btn btn-outline-success btn-sm" onclick="quickSkinSearch('仲夏夜之梦')">仲夏夜之梦</button>
+            <button class="btn btn-outline-success btn-sm" onclick="quickSkinSearch('地狱火')">地狱火</button>
+            <button class="btn btn-outline-success btn-sm" onclick="quickSkinSearch('敏锐之力')">敏锐之力</button>
+            <button class="btn btn-outline-success btn-sm" onclick="quickSkinSearch('心灵骇客')">心灵骇客</button>
         </div>
     </div>
 </div>
@@ -66,10 +190,23 @@ document.getElementById('heroInput').addEventListener('keypress', function(e) {
     }
 });
 
+document.getElementById('skinInput').addEventListener('keypress', function(e) {
+    if (e.key === 'Enter') {
+        searchSkin();
+    }
+});
+
 // 快捷搜索
-function quickSearch(heroName) {
+function quickHeroSearch(heroName) {
     document.getElementById('heroInput').value = heroName;
+    document.getElementById('hero-tab').click();
     searchHero();
+}
+
+function quickSkinSearch(skinName) {
+    document.getElementById('skinInput').value = skinName;
+    document.getElementById('skin-tab').click();
+    searchSkin();
 }
 
 // 搜索英雄
@@ -85,7 +222,7 @@ async function searchHero() {
         const data = await response.json();
 
         if (data.success) {
-            displayResults(data.heroName, data.results);
+            displayHeroResults(data.heroName, data.results);
         } else {
             alert(data.error || '查询失败');
         }
@@ -95,13 +232,13 @@ async function searchHero() {
     }
 }
 
-// 显示结果
-function displayResults(heroName, results) {
-    const searchResults = document.getElementById('searchResults');
+// 显示英雄结果
+function displayHeroResults(heroName, results) {
+    const searchResults = document.getElementById('heroSearchResults');
     const heroNameSpan = document.getElementById('heroName');
-    const totalCount = document.getElementById('totalCount');
-    const resultsList = document.getElementById('resultsList');
-    const noResults = document.getElementById('noResults');
+    const totalCount = document.getElementById('heroTotalCount');
+    const resultsList = document.getElementById('heroResultsList');
+    const noResults = document.getElementById('heroNoResults');
 
     searchResults.style.display = 'block';
     heroNameSpan.textContent = heroName;
@@ -115,16 +252,14 @@ function displayResults(heroName, results) {
 
     noResults.style.display = 'none';
     
-    // 统计区服数量
     let regionCount = 0;
     results.forEach(account => {
         regionCount += account.regions.length;
     });
     totalCount.textContent = `共 ${regionCount} 个区服`;
 
-    // 渲染结果
     resultsList.innerHTML = results.map(account => `
-        <div class="card mb-3">
+        <div class="card mb-3 result-card">
             <div class="card-header bg-light">
                 <div class="d-flex justify-content-between align-items-center">
                     <div>
@@ -144,7 +279,7 @@ function displayResults(heroName, results) {
                             <div class="d-flex align-items-center p-2 bg-light rounded">
                                 <i class="bi bi-geo-alt-fill text-primary me-2"></i>
                                 <span>${region.regionName}</span>
-                                <span class="badge bg-success ms-auto">已拥有</span>
+                                <span class="badge owned-badge ms-auto">已拥有</span>
                             </div>
                         </div>
                     `).join('')}
@@ -153,7 +288,98 @@ function displayResults(heroName, results) {
         </div>
     `).join('');
 
-    // 滚动到结果区域
+    searchResults.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+// 搜索皮肤
+async function searchSkin() {
+    const skinName = document.getElementById('skinInput').value.trim();
+    if (!skinName) {
+        alert('请输入英雄名称或皮肤名称');
+        return;
+    }
+
+    try {
+        const response = await fetch(`/api/search/skin?query=${encodeURIComponent(skinName)}`);
+        const data = await response.json();
+
+        if (data.success) {
+            displaySkinResults(data.skinName, data.heroName, data.results);
+        } else {
+            alert(data.error || '查询失败');
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        alert('查询失败，请重试');
+    }
+}
+
+// 显示皮肤结果
+function displaySkinResults(skinName, heroName, results) {
+    const searchResults = document.getElementById('skinSearchResults');
+    const skinNameSpan = document.getElementById('skinName');
+    const totalCount = document.getElementById('skinTotalCount');
+    const resultsList = document.getElementById('skinResultsList');
+    const noResults = document.getElementById('skinNoResults');
+
+    searchResults.style.display = 'block';
+    
+    if (heroName) {
+        skinNameSpan.textContent = `${heroName} - ${skinName}`;
+    } else {
+        skinNameSpan.textContent = skinName;
+    }
+
+    if (results.length === 0) {
+        totalCount.textContent = '共 0 个区服';
+        resultsList.innerHTML = '';
+        noResults.style.display = 'block';
+        return;
+    }
+
+    noResults.style.display = 'none';
+    
+    let regionCount = 0;
+    results.forEach(account => {
+        regionCount += account.regions.length;
+    });
+    totalCount.textContent = `共 ${regionCount} 个区服`;
+
+    resultsList.innerHTML = results.map(account => `
+        <div class="card mb-3 result-card">
+            <div class="card-header bg-light">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h5 class="mb-0">
+                            <i class="bi bi-controller"></i> ${account.accountName}
+                            <span class="badge bg-secondary ms-2">${account.loginType}</span>
+                            <span class="badge bg-info ms-1">${account.platform}</span>
+                        </h5>
+                    </div>
+                    <span class="badge bg-success">${account.regions.length} 个区服</span>
+                </div>
+            </div>
+            <div class="card-body">
+                ${account.regions.map(region => `
+                    <div class="mb-3">
+                        <div class="d-flex align-items-center mb-2">
+                            <i class="bi bi-geo-alt-fill text-success me-2"></i>
+                            <strong>${region.regionName}</strong>
+                        </div>
+                        <div class="ms-4">
+                            ${region.ownedSkins.map(skin => `
+                                <div class="skin-item owned">
+                                    <i class="bi bi-check-circle-fill text-success me-2"></i>
+                                    <span>${skin.skinName}</span>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                `).join('')}
+            </div>
+        </div>
+    `).join('');
+
     searchResults.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 </script>

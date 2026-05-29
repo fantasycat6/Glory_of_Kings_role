@@ -16,7 +16,7 @@
                     <a class="nav-link" href="{{ url_for('main.dashboard') }}">我的账号</a>
                 </li>
                 <li class="nav-item">
-                    <a class="nav-link" href="{{ url_for('main.hero_search') }}">英雄查询</a>
+                    <a class="nav-link" href="{{ url_for('main.hero_search') }}">账户查询</a>
                 </li>
                 {% endif %}
                 {% if current_user.is_admin %}
@@ -28,6 +28,7 @@
                         <li><a class="dropdown-item" href="{{ url_for('admin.index') }}">概览</a></li>
                         <li><a class="dropdown-item" href="{{ url_for('admin.users') }}">用户管理</a></li>
                         <li><a class="dropdown-item" href="{{ url_for('admin.heroes') }}">英雄管理</a></li>
+                        <li><a class="dropdown-item" href="{{ url_for('admin.skins') }}">皮肤管理</a></li>
                         <li><a class="dropdown-item" href="{{ url_for('admin.backup') }}">备份管理</a></li>
                     </ul>
                 </li>

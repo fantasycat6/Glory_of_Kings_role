@@ -34,14 +34,14 @@
             </div>
         </div>
         <div class="col-md-4 mb-3">
-            <div class="card text-white bg-info">
+            <div class="card text-white bg-warning">
                 <div class="card-body">
                     <div class="d-flex justify-content-between">
                         <div>
-                            <h4 class="card-title">管理功能</h4>
-                            <p class="card-text">系统管理</p>
+                            <h4 class="card-title">{{ skins|length }}</h4>
+                            <p class="card-text">皮肤数量</p>
                         </div>
-                        <i class="bi bi-gear display-4"></i>
+                        <i class="bi bi-palette display-4"></i>
                     </div>
                 </div>
             </div>
@@ -68,6 +68,17 @@
                 <div class="card-body">
                     <p>管理英雄数据，包括添加、编辑、删除英雄，重置为官方数据等。</p>
                     <a href="{{ url_for('admin.heroes') }}" class="btn btn-primary">进入英雄管理</a>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6 mb-3">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">皮肤管理</h5>
+                </div>
+                <div class="card-body">
+                    <p>管理皮肤数据，包括添加、编辑、删除皮肤，重置为官方数据等。</p>
+                    <a href="{{ url_for('admin.skins') }}" class="btn btn-primary">进入皮肤管理</a>
                 </div>
             </div>
         </div>

@@ -4,7 +4,8 @@
 from flask import Blueprint, render_template, jsonify, request, redirect, url_for, flash, Response, send_file, current_app
 from flask_login import login_required, current_user
 from functools import wraps
-from models import db, User, Account, Region, Hero, HeroOwnership, BackupFile, load_heroes_from_json, load_hero_images_from_json
+from models import db, User, Account, Region, Hero, HeroOwnership, Skin, SkinOwnership, BackupFile, load_heroes_from_json, load_hero_images_from_json, load_hero_skins_from_json
+from image_processor import save_uploaded_file, delete_image, get_image_url
 from config import BASE_DIR
 import json
 import os
@@ -37,7 +38,8 @@ def index():
     """管理后台首页"""
     users = User.query.all()
     heroes = Hero.query.all()
-    return render_template('admin/dashboard.html', users=users, heroes=heroes)
+    skins = Skin.query.all()
+    return render_template('admin/dashboard.html', users=users, heroes=heroes, skins=skins)
 
 
 # ==================== 用户管理 ====================
@@ -358,6 +360,278 @@ def api_reset_heroes():
         'success': True,
         'message': f'英雄数据已重置: {len(heroes_data)} 位英雄',
         'heroes': len(heroes_data)
+    })
+
+
+# ==================== 图片上传管理 ====================
+
+@admin_bp.route('/api/admin/images/upload', methods=['POST'])
+@login_required
+@admin_required
+def api_upload_image():
+    """上传本地图片API"""
+    try:
+        if 'file' not in request.files:
+            return jsonify({'success': False, 'error': '没有上传文件'}), 400
+        
+        file = request.files['file']
+        
+        # 可选：指定皮肤ID，用于自动更新皮肤图片
+        skin_id = request.form.get('skin_id', type=int)
+        
+        # 保存图片
+        result, error = save_uploaded_file(file)
+        
+        if error:
+            return jsonify({'success': False, 'error': error}), 400
+        
+        # 如果指定了皮肤ID，自动更新皮肤图片
+        image_url = get_image_url(result)
+        
+        if skin_id:
+            skin = Skin.query.get(skin_id)
+            if skin:
+                skin.image = image_url
+                skin.image_id = ''  # 清除image_id，使用自定义URL
+                db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'path': result,
+            'url': image_url,
+            'skin_updated': skin_id is not None
+        })
+        
+    except Exception as e:
+        print(f"图片上传失败: {e}")
+        return jsonify({'success': False, 'error': f'上传失败: {str(e)}'}), 500
+
+
+# ==================== 皮肤管理 ====================
+
+@admin_bp.route('/admin/skins')
+@login_required
+@admin_required
+def skins():
+    """皮肤管理页面"""
+    return render_template('admin/skins.html')
+
+
+@admin_bp.route('/api/admin/skins', methods=['GET'])
+@login_required
+@admin_required
+def api_get_skins():
+    """获取皮肤列表API"""
+    from pypinyin import pinyin, Style
+    
+    page = request.args.get('page', 1, type=int)
+    hero_filter = request.args.get('hero', 'all')
+    search_query = request.args.get('search', '')
+    filter_type = request.args.get('filterType', '')
+    role_filter = request.args.get('role', '全部')
+    image_id_filter = request.args.get('imageId', 'all')
+    per_page = 20
+    
+    # 获取所有英雄和职业映射
+    heroes = Hero.query.order_by(Hero.name).all()
+    hero_names = [h.name for h in heroes]
+    hero_roles = {h.name: h.role for h in heroes}
+    all_roles = ['全部', '坦克', '战士', '刺客', '法师', '射手', '辅助']
+    
+    query = Skin.query
+    
+    # 筛选
+    if hero_filter != 'all':
+        query = query.filter_by(hero_name=hero_filter)
+    
+    if search_query:
+        query = query.filter(
+            (Skin.name.like(f'%{search_query}%')) | 
+            (Skin.hero_name.like(f'%{search_query}%'))
+        )
+    
+    # 获取所有符合条件的皮肤
+    all_skins = query.all()
+    
+    # 筛选逻辑
+    filtered_skins = []
+    for skin in all_skins:
+        skin_role = hero_roles.get(skin.hero_name, '')
+        
+        # 职业筛选
+        if filter_type == 'role' and role_filter != '全部':
+            if not (skin_role and role_filter in skin_role):
+                continue
+        
+        # image_id筛选
+        if filter_type == 'imageId':
+            if image_id_filter == 'has' and not skin.image_id:
+                continue
+            if image_id_filter == 'empty' and skin.image_id:
+                continue
+        
+        filtered_skins.append(skin)
+    
+    # 排序：按英雄拼音排序
+    def get_sort_key(skin):
+        try:
+            pinyin_list = pinyin(skin.hero_name, style=Style.NORMAL)
+            hero_pinyin = ''.join([p[0] for p in pinyin_list])
+        except:
+            hero_pinyin = skin.hero_name.lower()
+        return (hero_pinyin, skin.id)
+    
+    sorted_skins = sorted(filtered_skins, key=get_sort_key)
+    
+    # 手动分页
+    total = len(sorted_skins)
+    total_pages = (total + per_page - 1) // per_page
+    start = (page - 1) * per_page
+    end = start + per_page
+    paginated_skins = sorted_skins[start:end]
+    
+    # 构建带职业的皮肤数据
+    def build_skin_dict(skin):
+        skin_dict = skin.to_dict()
+        skin_dict['role'] = hero_roles.get(skin.hero_name, '')
+        return skin_dict
+    
+    return jsonify({
+        'success': True,
+        'skins': [build_skin_dict(skin) for skin in paginated_skins],
+        'allSkins': [build_skin_dict(skin) for skin in sorted_skins],
+        'heroNames': hero_names,
+        'allRoles': all_roles,
+        'heroRoles': hero_roles,
+        'pagination': {
+            'currentPage': page,
+            'totalPages': max(1, total_pages),
+            'totalSkins': total,
+            'perPage': per_page
+        }
+    })
+
+
+@admin_bp.route('/api/admin/skins', methods=['POST'])
+@login_required
+@admin_required
+def api_create_skin():
+    """添加皮肤API"""
+    data = request.get_json()
+    hero_name = data.get('hero_name', '').strip()
+    name = data.get('name', '').strip()
+    image_id = data.get('image_id', '').strip()
+    image = data.get('image', '').strip()
+    
+    if not hero_name or not name:
+        return jsonify({'success': False, 'error': '英雄和皮肤名称不能为空'}), 400
+    
+    # 检查英雄是否存在
+    if not Hero.query.get(hero_name):
+        return jsonify({'success': False, 'error': '英雄不存在'}), 400
+    
+    # 检查皮肤是否已存在
+    existing = Skin.query.filter_by(hero_name=hero_name, name=name).first()
+    if existing:
+        return jsonify({'success': False, 'error': '该英雄的同名皮肤已存在'}), 400
+    
+    skin = Skin(
+        hero_name=hero_name,
+        name=name,
+        image_id=image_id,
+        image=image
+    )
+    db.session.add(skin)
+    db.session.commit()
+    
+    return jsonify({'success': True, 'skin': skin.to_dict()})
+
+
+@admin_bp.route('/api/admin/skins/<int:skin_id>', methods=['PUT'])
+@login_required
+@admin_required
+def api_update_skin(skin_id):
+    """更新皮肤API"""
+    skin = Skin.query.get_or_404(skin_id)
+    data = request.get_json()
+    
+    hero_name = data.get('hero_name', '').strip()
+    name = data.get('name', '').strip()
+    image_id = data.get('image_id', '').strip()
+    image = data.get('image', '').strip()
+    
+    # 如果修改了英雄或名称，检查是否重复
+    if hero_name and name and (hero_name != skin.hero_name or name != skin.name):
+        # 检查英雄是否存在
+        if not Hero.query.get(hero_name):
+            return jsonify({'success': False, 'error': '英雄不存在'}), 400
+        
+        # 检查是否重复
+        existing = Skin.query.filter_by(hero_name=hero_name, name=name).first()
+        if existing and existing.id != skin_id:
+            return jsonify({'success': False, 'error': '该英雄的同名皮肤已存在'}), 400
+        
+        skin.hero_name = hero_name
+        skin.name = name
+    
+    elif hero_name and hero_name != skin.hero_name:
+        if not Hero.query.get(hero_name):
+            return jsonify({'success': False, 'error': '英雄不存在'}), 400
+        skin.hero_name = hero_name
+    
+    elif name and name != skin.name:
+        existing = Skin.query.filter_by(hero_name=skin.hero_name, name=name).first()
+        if existing and existing.id != skin_id:
+            return jsonify({'success': False, 'error': '该英雄的同名皮肤已存在'}), 400
+        skin.name = name
+    
+    # 更新图片ID和头像
+    skin.image_id = image_id
+    skin.image = image
+    
+    db.session.commit()
+    return jsonify({'success': True, 'skin': skin.to_dict()})
+
+
+@admin_bp.route('/api/admin/skins/<int:skin_id>', methods=['DELETE'])
+@login_required
+@admin_required
+def api_delete_skin(skin_id):
+    """删除皮肤API"""
+    skin = Skin.query.get_or_404(skin_id)
+    
+    db.session.delete(skin)
+    db.session.commit()
+    
+    return jsonify({'success': True})
+
+
+@admin_bp.route('/api/admin/skins/reset', methods=['POST'])
+@login_required
+@admin_required
+def api_reset_skins():
+    """重置皮肤数据API"""
+    skins_data = load_hero_skins_from_json()
+    
+    # 清空现有皮肤数据
+    Skin.query.delete()
+    
+    # 重新导入
+    for skin_data in skins_data:
+        skin = Skin(
+            hero_name=skin_data['hero_name'],
+            name=skin_data['name'],
+            image_id=skin_data.get('image_id', ''),
+            image=skin_data.get('image', '')
+        )
+        db.session.add(skin)
+    
+    db.session.commit()
+    
+    return jsonify({
+        'success': True,
+        'message': f'皮肤数据已重置: {len(skins_data)} 个皮肤',
+        'skins': len(skins_data)
     })
 
 

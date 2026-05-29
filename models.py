@@ -11,8 +11,7 @@ import os
 db = SQLAlchemy()
 
 # 英雄数据文件路径
-HEROES_JSON_PATH = os.path.join(os.path.dirname(__file__), 'data', 'heroes_official.json')
-HERO_IMAGES_JSON_PATH = os.path.join(os.path.dirname(__file__), 'data', 'hero_images.json')
+HEROES_JSON_PATH = os.path.join(os.path.dirname(__file__), 'data', 'heroes.json')
 
 
 def load_heroes_from_json():
@@ -27,13 +26,145 @@ def load_heroes_from_json():
 
 
 def load_hero_images_from_json():
-    """从JSON文件加载英雄图片数据"""
+    """从JSON文件加载英雄图片数据（从heroes.json中提取）"""
     try:
-        with open(HERO_IMAGES_JSON_PATH, 'r', encoding='utf-8') as f:
-            return json.load(f)
+        with open(HEROES_JSON_PATH, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+        
+        hero_images = {}
+        for hero in data.get('heroes', []):
+            name = hero.get('name', '')
+            if name:
+                hero_images[name] = {
+                    'image': hero.get('image', ''),
+                    'url': hero.get('url', '')
+                }
+        return hero_images
     except Exception as e:
         print(f"加载英雄图片数据失败: {e}")
         return {}
+
+
+def parse_skin_image_id(image_url):
+    """从皮肤图片URL中解析图片ID"""
+    if not image_url:
+        return ''
+    
+    # 定义基础URL模式
+    base_patterns = [
+        'https://game-1255653016.file.myqcloud.com/manage/compress/custom_wzry_E1/',
+        'https://game-1255653016.file.myqcloud.com/manage/custom_wzry_E1/'
+    ]
+    
+    for pattern in base_patterns:
+        if pattern in image_url:
+            # 提取文件名部分（不含查询参数）
+            after_pattern = image_url.split(pattern)[1]
+            if '?' in after_pattern:
+                file_part = after_pattern.split('?')[0]
+                # 去除扩展名
+                if '.' in file_part:
+                    return file_part.rsplit('.', 1)[0]
+                return file_part
+    
+    # 检查是否是game.gtimg.cn格式
+    if 'game.gtimg.cn' in image_url:
+        try:
+            parts = image_url.split('/')
+            num1 = parts[-2]  # '141'
+            num2_part = parts[-1].split('-')[-1].split('.')[0]  # '2'
+            return f"{num1}-{num2_part}"
+        except Exception:
+            pass
+    
+    # 自定义URL，返回空
+    return ''
+
+
+def generate_skin_image_url(image_id, custom_image=''):
+    """
+    根据image_id生成皮肤图片URL
+    
+    优先级规则：
+    1. 如果有图片ID，优先使用图片ID生成URL
+    2. 只有当图片ID为空时，才使用自定义URL
+    
+    Args:
+        image_id: 皮肤图片ID，格式有三种:
+                  1. 腾讯官方格式: "141-2" → 生成 https://game.gtimg.cn/images/yxzj/img201606/heroimg/141/141-smallskin-2.jpg
+                  2. 压缩图片ID: "7dd876601a0d808b4d4071f31add095e" → 生成 https://game-1255653016.file.myqcloud.com/manage/compress/custom_wzry_E1/{image_id}.jpg
+                  3. PNG图片ID: "7dd876601a0d808b4d4071f31add095e" → 生成 https://game-1255653016.file.myqcloud.com/manage/custom_wzry_E1/{image_id}.png
+        custom_image: 自定义完整URL（仅在图片ID为空时使用）
+    
+    Returns:
+        完整的皮肤图片URL
+    """
+    from config import Config
+    
+    # 优先级1：图片ID（大多数情况下使用）
+    if image_id:
+        # 格式1：腾讯官方格式（包含"-"）
+        if '-' in image_id:
+            try:
+                num1, num2 = image_id.split('-', 1)
+                return Config.SKIN_IMAGE_BASE_URLS[2].format(num1=num1, num2=num2)
+            except Exception:
+                pass
+        
+        # 格式2和3：哈希格式（32位或类似的字符串）
+        # 尝试使用压缩图片URL（第一个模板）
+        try:
+            return Config.SKIN_IMAGE_BASE_URLS[0].format(image_id=image_id)
+        except Exception:
+            # 尝试使用PNG图片URL（第二个模板）
+            try:
+                return Config.SKIN_IMAGE_BASE_URLS[1].format(image_id=image_id)
+            except Exception:
+                pass
+    
+    # 优先级2：自定义URL（仅在图片ID为空时使用）
+    if custom_image:
+        return custom_image
+    
+    return ''
+
+
+def load_hero_skins_from_json():
+    """从JSON文件加载皮肤数据（从heroes.json中提取）"""
+    try:
+        with open(HEROES_JSON_PATH, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+        
+        skins = []
+        for hero in data.get('heroes', []):
+            hero_name = hero.get('name', '')
+            hero_skins = hero.get('skins', [])
+            for skin in hero_skins:
+                # 处理对象数组格式（包含name和image字段）
+                if isinstance(skin, dict):
+                    skin_name = skin.get('name', '')
+                    skin_image = skin.get('image', '')
+                    skin_image_id = skin.get('image_id', '')
+                    # 如果image_id为空但有image，尝试解析
+                    if not skin_image_id and skin_image:
+                        skin_image_id = parse_skin_image_id(skin_image)
+                else:
+                    # 处理字符串数组格式（兼容旧格式）
+                    skin_name = skin
+                    skin_image = ''
+                    skin_image_id = ''
+                
+                if skin_name:  # 只添加非空的皮肤名称
+                    skins.append({
+                        'hero_name': hero_name,
+                        'name': skin_name,
+                        'image_id': skin_image_id,
+                        'image': skin_image
+                    })
+        return skins
+    except Exception as e:
+        print(f"加载皮肤数据失败: {e}")
+        return []
 
 
 class User(UserMixin, db.Model):
@@ -280,6 +411,133 @@ class HeroOwnership(db.Model):
         }
 
 
+class Skin(db.Model):
+    """皮肤表"""
+    __tablename__ = 'skins'
+
+    id = db.Column(db.Integer, primary_key=True)
+    hero_name = db.Column(db.String(50), db.ForeignKey('heroes.name'), nullable=False)
+    name = db.Column(db.String(100), nullable=False)
+    image_id = db.Column(db.String(100), default='')
+    image = db.Column(db.String(500), default='')
+
+    # 关系
+    hero = db.relationship('Hero', backref='skins', lazy=True)
+    ownerships = db.relationship('SkinOwnership', backref='skin', lazy=True, cascade='all, delete-orphan')
+
+    __table_args__ = (
+        db.UniqueConstraint('hero_name', 'name', name='unique_skin_name'),
+    )
+
+    @classmethod
+    def get_skins_by_hero(cls, hero_name):
+        """获取指定英雄的所有皮肤"""
+        return cls.query.filter_by(hero_name=hero_name).order_by(cls.id).all()
+
+    @classmethod
+    def get_all_skins(cls):
+        """获取所有皮肤"""
+        return cls.query.order_by(cls.hero_name, cls.id).all()
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'hero_name': self.hero_name,
+            'name': self.name,
+            'image_id': self.image_id,
+            'image': generate_skin_image_url(self.image_id, self.image)
+        }
+    
+    def get_image_url(self):
+        """获取完整的皮肤图片URL"""
+        return generate_skin_image_url(self.image_id, self.image)
+
+
+class SkinOwnership(db.Model):
+    """皮肤拥有记录表"""
+    __tablename__ = 'skin_ownership'
+
+    id = db.Column(db.Integer, primary_key=True)
+    account_id = db.Column(db.Integer, db.ForeignKey('accounts.id'), nullable=False)
+    region_id = db.Column(db.Integer, db.ForeignKey('regions.id'), nullable=False)
+    skin_id = db.Column(db.Integer, db.ForeignKey('skins.id'), nullable=False)
+    obtained_at = db.Column(db.DateTime, default=datetime.now)
+
+    # 关系
+    account = db.relationship('Account', backref='skin_ownerships', lazy=True)
+    region = db.relationship('Region', backref='skin_ownerships', lazy=True)
+
+    # 联合唯一约束
+    __table_args__ = (
+        db.UniqueConstraint('account_id', 'region_id', 'skin_id', name='unique_skin_ownership'),
+    )
+
+    @classmethod
+    def get_owned_skins(cls, account_id, region_id):
+        """获取指定区服已拥有的皮肤ID列表"""
+        records = cls.query.filter_by(account_id=account_id, region_id=region_id).all()
+        return [record.skin_id for record in records]
+
+    @classmethod
+    def get_skin_stats(cls, account_id, region_id):
+        """获取皮肤统计信息"""
+        owned_skin_ids = cls.get_owned_skins(account_id, region_id)
+        all_skins = Skin.query.all()
+        total = len(all_skins)
+        owned = len(owned_skin_ids)
+
+        # 按英雄统计
+        by_hero = {}
+        for skin in all_skins:
+            if skin.hero_name not in by_hero:
+                by_hero[skin.hero_name] = {'total': 0, 'owned': 0}
+            by_hero[skin.hero_name]['total'] += 1
+            if skin.id in owned_skin_ids:
+                by_hero[skin.hero_name]['owned'] += 1
+
+        return {
+            'total': total,
+            'owned': owned,
+            'percentage': round((owned / total * 100)) if total > 0 else 0,
+            'byHero': by_hero
+        }
+
+    @classmethod
+    def toggle_skin(cls, account_id, region_id, skin_id, owned):
+        """切换皮肤拥有状态"""
+        existing = cls.query.filter_by(
+            account_id=account_id,
+            region_id=region_id,
+            skin_id=skin_id
+        ).first()
+
+        if owned and not existing:
+            # 添加拥有的皮肤
+            ownership = cls(
+                account_id=account_id,
+                region_id=region_id,
+                skin_id=skin_id
+            )
+            db.session.add(ownership)
+            db.session.commit()
+            return True
+        elif not owned and existing:
+            # 移除拥有的皮肤
+            db.session.delete(existing)
+            db.session.commit()
+            return True
+        return False
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'account_id': self.account_id,
+            'region_id': self.region_id,
+            'skin_id': self.skin_id,
+            'obtained_at': self.obtained_at.isoformat() if self.obtained_at else None
+        }
+
+
 class BackupFile(db.Model):
     """备份文件表"""
     __tablename__ = 'backup_files'
@@ -344,6 +602,37 @@ def init_default_data():
             )
             db.session.add(hero)
         print("英雄数据初始化完成")
+    
+    # 加载皮肤数据
+    skins = load_hero_skins_from_json()
+    
+    # 检查是否已有皮肤数据
+    if Skin.query.count() == 0 and skins:
+        print(f"初始化 {len(skins)} 个皮肤数据...")
+        
+        # 去重处理
+        seen_skins = set()
+        unique_skins = []
+        
+        for skin_data in skins:
+            key = (skin_data['hero_name'], skin_data['name'])
+            if key not in seen_skins:
+                seen_skins.add(key)
+                unique_skins.append(skin_data)
+        
+        if len(unique_skins) < len(skins):
+            print(f"  发现并移除 {len(skins) - len(unique_skins)} 个重复皮肤")
+        
+        # 批量插入皮肤
+        for skin_data in unique_skins:
+            skin = Skin(
+                hero_name=skin_data['hero_name'],
+                name=skin_data['name'],
+                image_id=skin_data.get('image_id', ''),
+                image=skin_data.get('image', '')
+            )
+            db.session.add(skin)
+        print(f"皮肤数据初始化完成: {len(unique_skins)} 个皮肤")
     
     # 创建默认管理员账号
     admin = User.query.filter_by(username='admin').first()

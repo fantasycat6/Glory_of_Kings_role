@@ -1,0 +1,749 @@
+{% extends 'base.html' %}
+
+{% block title %}皮肤管理 - 管理后台{% endblock %}
+
+{% block extra_css %}
+<style>
+    .action-btn {
+        transition: all 0.2s;
+        border-radius: 8px;
+    }
+
+    .action-btn:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    }
+
+    .modal-header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+    }
+
+    .modal-header .btn-close {
+        color: white;
+    }
+
+    .table-hover tbody tr:hover {
+        background-color: rgba(102, 126, 234, 0.05);
+    }
+
+    .pagination .page-link {
+        border-radius: 8px !important;
+        margin: 0 2px;
+    }
+
+    .pagination .page-item.active .page-link {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        border-color: #667eea;
+    }
+
+    .search-container {
+        position: relative;
+    }
+
+    .search-icon {
+        position: absolute;
+        left: 12px;
+        top: 50%;
+        transform: translateY(-50%);
+        color: #9ca3af;
+    }
+
+    .search-container input {
+        padding-left: 2.5rem;
+    }
+    
+    .role-filter .btn {
+        margin-right: 5px;
+        margin-bottom: 5px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="fw-bold text-gray-800">皮肤管理</h2>
+            <p class="text-muted">管理所有英雄的皮肤数据</p>
+        </div>
+        <div class="d-flex gap-2">
+            <a href="{{ url_for('admin.index') }}" class="btn btn-secondary action-btn">
+                <i class="bi bi-arrow-left me-1"></i> 返回管理后台
+            </a>
+            <button class="btn btn-success action-btn" onclick="showAddModal()">
+                <i class="bi bi-plus-circle me-1"></i> 添加皮肤
+            </button>
+            <button class="btn btn-warning action-btn" onclick="resetSkins()">
+                <i class="bi bi-arrow-counterclockwise me-1"></i> 重置为官方数据
+            </button>
+        </div>
+    </div>
+
+    <!-- 筛选和搜索 -->
+    <div class="card rounded-16 shadow-sm mb-4">
+        <div class="card-body p-4">
+            <div class="row align-items-center mb-3">
+                <div class="col-md-6 mb-3 mb-md-0">
+                    <div class="search-container">
+                        <i class="bi bi-search search-icon"></i>
+                        <input type="text" id="searchInput" class="form-control rounded-full border-gray-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200" 
+                               placeholder="搜索皮肤名称或英雄..." oninput="loadSkins()">
+                    </div>
+                </div>
+                <div class="col-md-6 text-md-right">
+                    <span id="skinCount" class="form-text text-muted"></span>
+                </div>
+            </div>
+            <div class="row align-items-center">
+                <div class="col-md-3 mb-3 mb-md-0">
+                    <select id="filterType" class="form-select rounded-lg border-gray-200 focus:border-indigo-500" onchange="handleFilterTypeChange()">
+                        <option value="">无筛选</option>
+                        <option value="role">职业筛选</option>
+                        <option value="imageId">图片ID筛选</option>
+                    </select>
+                </div>
+                <div class="col-md-9">
+                    <div id="roleFilterButtons" style="display: none;">
+                        <div class="role-filter">
+                            <button class="btn btn-sm btn-outline-primary active" data-role="全部" onclick="handleRoleFilter(this)">全部</button>
+                            <button class="btn btn-sm btn-outline-primary" data-role="坦克" onclick="handleRoleFilter(this)">坦克</button>
+                            <button class="btn btn-sm btn-outline-primary" data-role="战士" onclick="handleRoleFilter(this)">战士</button>
+                            <button class="btn btn-sm btn-outline-primary" data-role="刺客" onclick="handleRoleFilter(this)">刺客</button>
+                            <button class="btn btn-sm btn-outline-primary" data-role="法师" onclick="handleRoleFilter(this)">法师</button>
+                            <button class="btn btn-sm btn-outline-primary" data-role="射手" onclick="handleRoleFilter(this)">射手</button>
+                            <button class="btn btn-sm btn-outline-primary" data-role="辅助" onclick="handleRoleFilter(this)">辅助</button>
+                        </div>
+                    </div>
+                    <div id="imageIdFilterButtons" style="display: none;">
+                        <div class="role-filter">
+                            <button class="btn btn-sm btn-outline-primary active" data-filter="all" onclick="handleImageIdFilter(this)">全部</button>
+                            <button class="btn btn-sm btn-outline-primary" data-filter="has" onclick="handleImageIdFilter(this)">有图片ID</button>
+                            <button class="btn btn-sm btn-outline-primary" data-filter="empty" onclick="handleImageIdFilter(this)">无图片ID</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 皮肤列表 -->
+    <div class="card rounded-16 shadow-sm overflow-hidden">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-6 py-3 text-center text-sm font-semibold text-gray-700">头像</th>
+                        <th class="px-6 py-3 text-left text-sm font-semibold text-gray-700">英雄</th>
+                        <th class="px-6 py-3 text-left text-sm font-semibold text-gray-700">皮肤名称</th>
+                        <th class="px-6 py-3 text-left text-sm font-semibold text-gray-700">图片ID</th>
+                        <th class="px-6 py-3 text-center text-sm font-semibold text-gray-700">操作</th>
+                    </tr>
+                </thead>
+                <tbody id="skinsTableBody" class="divide-y divide-gray-100">
+                    <!-- 动态填充 -->
+                </tbody>
+            </table>
+        </div>
+
+        <!-- 分页 -->
+        <div class="card-footer bg-white border-t border-gray-100">
+            <nav aria-label="分页" class="flex justify-center">
+                <ul class="pagination" id="pagination">
+                    <!-- 动态填充 -->
+                </ul>
+            </nav>
+        </div>
+    </div>
+</div>
+
+<!-- 添加/编辑皮肤模态框 -->
+<div class="modal fade" id="skinModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content rounded-16 overflow-hidden">
+            <div class="modal-header">
+                <h5 class="modal-title" id="skinModalTitle">添加皮肤</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-6">
+                <form id="skinForm">
+                    <input type="hidden" id="skinId">
+                    <div class="row">
+                        <div class="col-md-6 mb-4">
+                            <label class="form-label font-medium text-gray-700">英雄 *</label>
+                            <select id="heroName" class="form-select rounded-lg border-gray-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200" required>
+                                <option value="">选择英雄...</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6 mb-4">
+                            <label class="form-label font-medium text-gray-700">皮肤名称 *</label>
+                            <input type="text" id="skinName" class="form-control rounded-lg border-gray-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200" required>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-4 mb-4">
+                            <label class="form-label font-medium text-gray-700">图片ID格式</label>
+                            <select id="imageIdFormat" class="form-select rounded-lg border-gray-200 focus:border-indigo-500" onchange="updateImageIdPlaceholder()">
+                                <option value="auto">自动检测</option>
+                                <option value="official">官方格式</option>
+                                <option value="jpg">JPG图片ID</option>
+                                <option value="png">PNG图片ID</option>
+                            </select>
+                            <div class="form-text text-muted">选择图片ID格式</div>
+                        </div>
+                        <div class="col-md-8 mb-4">
+                            <label class="form-label font-medium text-gray-700">图片ID</label>
+                            <input type="text" id="skinImageId" class="form-control rounded-lg border-gray-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200" 
+                                   placeholder="例如：f9b94edeff554aa818794196ab78243b 或 141-2"
+                                   oninput="previewSkinImageUrl()">
+                        </div>
+                    </div>
+                    <div class="row" id="imageIdPreview" style="display: none;">
+                        <div class="col-12 mb-4">
+                            <label class="form-label font-medium text-gray-700">预览URL</label>
+                            <code id="previewUrl" class="text-break" style="font-size: 0.9rem; display: block; word-break: break-all; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"></code>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-4">
+                            <label class="form-label font-medium text-gray-700">自定义皮肤头像 URL</label>
+                            <input type="url" id="skinImage" class="form-control rounded-lg border-gray-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200" placeholder="https://...">
+                            <div class="form-text text-muted">仅在图片ID为空时使用</div>
+                        </div>
+                        <div class="col-md-6 mb-4">
+                            <label class="form-label font-medium text-gray-700">上传本地图片</label>
+                            <div class="input-group">
+                                <input type="file" id="skinImageFile" class="form-control" accept="image/*" onchange="handleImageFileSelect(event)">
+                                <button class="btn btn-outline-secondary" type="button" onclick="uploadLocalImage()" id="uploadBtn" disabled>
+                                    <span id="uploadBtnText">上传</span>
+                                </button>
+                            </div>
+                            <div class="form-text text-muted">支持 JPG/PNG/GIF/WebP，自动裁剪为120x120</div>
+                            <div id="uploadStatus" class="form-text"></div>
+                        </div>
+                    </div>
+                    <div class="row" id="imagePreviewRow" style="display: none;">
+                        <div class="col-12 mb-3">
+                            <label class="form-label font-medium text-gray-700">图片预览</label>
+                            <div class="text-center">
+                                <img id="imagePreview" src="" alt="预览" style="max-width: 150px; max-height: 150px; border-radius: 8px; border: 2px solid #e5e7eb;">
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer bg-gray-50">
+                <button type="button" class="btn btn-secondary rounded-lg" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary rounded-lg" onclick="saveSkin()">保存</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 删除确认模态框 -->
+<div class="modal fade" id="deleteModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content rounded-16 overflow-hidden">
+            <div class="modal-header bg-red-500 text-white">
+                <h5 class="modal-title">确认删除</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-6">
+                <div class="text-center">
+                    <div class="mb-4">
+                        <i class="bi bi-exclamation-triangle text-4xl text-red-500"></i>
+                    </div>
+                    <p class="text-gray-700">确定要删除这个皮肤吗？此操作不可撤销！</p>
+                </div>
+            </div>
+            <div class="modal-footer bg-gray-50">
+                <button type="button" class="btn btn-secondary rounded-lg" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-danger rounded-lg" onclick="confirmDelete()">删除</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+let currentPage = 1;
+let heroNames = [];
+let deletingSkinId = null;
+let skinModal = null;
+let deleteModal = null;
+let currentFilterType = '';
+let currentRoleFilter = '全部';
+let currentImageIdFilter = 'all';
+let selectedFile = null;
+
+document.addEventListener('DOMContentLoaded', function() {
+    skinModal = new bootstrap.Modal(document.getElementById('skinModal'));
+    deleteModal = new bootstrap.Modal(document.getElementById('deleteModal'));
+    loadSkins();
+});
+
+async function loadSkins(page = 1) {
+    currentPage = page;
+    const search = document.getElementById('searchInput').value;
+    
+    let url = `/api/admin/skins?page=${page}&hero=all&search=${encodeURIComponent(search)}`;
+    
+    if (currentFilterType) {
+        url += `&filterType=${currentFilterType}`;
+        if (currentFilterType === 'role') {
+            url += `&role=${currentRoleFilter}`;
+        } else if (currentFilterType === 'imageId') {
+            url += `&imageId=${currentImageIdFilter}`;
+        }
+    }
+    
+    try {
+        const response = await fetch(url);
+        const result = await response.json();
+        
+        if (result.success) {
+            heroNames = result.heroNames;
+            renderSkins(result.skins);
+            renderPagination(result.pagination);
+            renderHeroFilters(result.heroNames);
+            document.getElementById('skinCount').textContent = `共 ${result.pagination.totalSkins} 个皮肤`;
+        }
+    } catch (error) {
+        console.error('加载皮肤失败:', error);
+    }
+}
+
+function handleFilterTypeChange() {
+    const filterType = document.getElementById('filterType').value;
+    currentFilterType = filterType;
+    
+    const roleButtonsDiv = document.getElementById('roleFilterButtons');
+    const imageIdButtonsDiv = document.getElementById('imageIdFilterButtons');
+    
+    if (filterType === 'role') {
+        roleButtonsDiv.style.display = 'block';
+        imageIdButtonsDiv.style.display = 'none';
+    } else if (filterType === 'imageId') {
+        roleButtonsDiv.style.display = 'none';
+        imageIdButtonsDiv.style.display = 'block';
+    } else {
+        roleButtonsDiv.style.display = 'none';
+        imageIdButtonsDiv.style.display = 'none';
+    }
+    
+    loadSkins(1);
+}
+
+function handleRoleFilter(btn) {
+    const roleButtons = document.querySelectorAll('#roleFilterButtons .btn');
+    roleButtons.forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    currentRoleFilter = btn.dataset.role;
+    loadSkins(1);
+}
+
+function handleImageIdFilter(btn) {
+    const imageIdButtons = document.querySelectorAll('#imageIdFilterButtons .btn');
+    imageIdButtons.forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    currentImageIdFilter = btn.dataset.filter;
+    loadSkins(1);
+}
+
+function renderSkins(skins) {
+    const tbody = document.getElementById('skinsTableBody');
+    
+    if (skins.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" class="px-6 py-12 text-center text-gray-500">暂无皮肤数据</td></tr>';
+        return;
+    }
+    
+    tbody.innerHTML = skins.map(skin => `
+        <tr>
+            <td class="px-6 py-4 text-center">
+                ${skin.image ? `<img src="${escapeHtml(skin.image)}" alt="${escapeHtml(skin.name)}" style="width: 40px; height: 40px; object-fit: cover; border-radius: 4px;">` : '<span class="text-muted">-</span>'}
+            </td>
+            <td class="px-6 py-4">
+                <span class="font-semibold text-gray-800">${escapeHtml(skin.hero_name)}</span>
+            </td>
+            <td class="px-6 py-4">${escapeHtml(skin.name)}</td>
+            <td class="px-6 py-4">
+                <code class="text-sm text-gray-600 bg-gray-100 px-2 py-1 rounded">${skin.image_id || '-'}</code>
+            </td>
+            <td class="px-6 py-4 text-center">
+                <div class="d-flex justify-content-center gap-2">
+                    <button class="btn btn-sm btn-primary action-btn" onclick="showEditModal(${skin.id})">
+                        <i class="bi bi-pencil"></i> 编辑
+                    </button>
+                    <button class="btn btn-sm btn-danger action-btn" onclick="showDeleteModal(${skin.id})">
+                        <i class="bi bi-trash"></i> 删除
+                    </button>
+                </div>
+            </td>
+        </tr>
+    `).join('');
+}
+
+function renderPagination(pagination) {
+    const paginationEl = document.getElementById('pagination');
+    let html = '';
+    
+    html += `<li class="page-item ${pagination.currentPage === 1 ? 'disabled' : ''}">
+        <a class="page-link" href="#" onclick="loadSkins(${pagination.currentPage - 1}); return false;">上一页</a>
+    </li>`;
+    
+    for (let i = 1; i <= pagination.totalPages; i++) {
+        if (i === 1 || i === pagination.totalPages || (i >= pagination.currentPage - 2 && i <= pagination.currentPage + 2)) {
+            html += `<li class="page-item ${i === pagination.currentPage ? 'active' : ''}">
+                <a class="page-link" href="#" onclick="loadSkins(${i}); return false;">${i}</a>
+            </li>`;
+        } else if (i === pagination.currentPage - 3 || i === pagination.currentPage + 3) {
+            html += '<li class="page-item disabled"><span class="page-link">...</span></li>';
+        }
+    }
+    
+    html += `<li class="page-item ${pagination.currentPage === pagination.totalPages ? 'disabled' : ''}">
+        <a class="page-link" href="#" onclick="loadSkins(${pagination.currentPage + 1}); return false;">下一页</a>
+    </li>`;
+    
+    paginationEl.innerHTML = html;
+}
+
+function renderHeroFilters(names) {
+    const heroNameSelect = document.getElementById('heroName');
+    
+    heroNameSelect.innerHTML = '<option value="">选择英雄...</option>' + 
+        names.map(name => `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`).join('');
+}
+
+function updateImageIdPlaceholder() {
+    const format = document.getElementById('imageIdFormat').value;
+    const input = document.getElementById('skinImageId');
+    
+    const placeholders = {
+        'auto': '例如：f9b94edeff554aa818794196ab78243b 或 141-2',
+        'official': '例如：141-2（英雄编号-皮肤序号）',
+        'jpg': '例如：f9b94edeff554aa818794196ab78243b',
+        'png': '例如：f9b94edeff554aa818794196ab78243b'
+    };
+    
+    input.placeholder = placeholders[format] || placeholders['auto'];
+    
+    // 更新预览
+    previewSkinImageUrl();
+}
+
+function previewSkinImageUrl() {
+    const imageId = document.getElementById('skinImageId').value.trim();
+    const format = document.getElementById('imageIdFormat').value;
+    const previewDiv = document.getElementById('imageIdPreview');
+    const previewUrl = document.getElementById('previewUrl');
+    
+    if (!imageId) {
+        previewDiv.style.display = 'none';
+        return;
+    }
+    
+    let url = '';
+    
+    // 根据选择的格式生成URL
+    if (format === 'official' || (format === 'auto' && imageId.includes('-'))) {
+        // 腾讯官方格式: 141-2
+        const parts = imageId.split('-', 2);
+        if (parts.length === 2) {
+            url = `https://game.gtimg.cn/images/yxzj/img201606/heroimg/${parts[0]}/${parts[0]}-smallskin-${parts[1]}.jpg`;
+        }
+    } else if (format === 'png') {
+        // PNG格式
+        url = `https://game-1255653016.file.myqcloud.com/manage/custom_wzry_E1/${imageId}.png?imageMogr2/crop/120x120/gravity/center`;
+    } else {
+        // JPG格式（默认）
+        url = `https://game-1255653016.file.myqcloud.com/manage/compress/custom_wzry_E1/${imageId}.jpg?imageMogr2/crop/120x120/gravity/center`;
+    }
+    
+    previewUrl.textContent = url;
+    previewDiv.style.display = 'block';
+}
+
+function handleImageFileSelect(event) {
+    const fileInput = event.target;
+    const file = fileInput.files[0];
+    const uploadBtn = document.getElementById('uploadBtn');
+    const uploadBtnText = document.getElementById('uploadBtnText');
+    const uploadStatus = document.getElementById('uploadStatus');
+    
+    if (file) {
+        // 验证文件类型
+        const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+        if (!allowedTypes.includes(file.type)) {
+            uploadStatus.textContent = '请选择有效的图片文件（JPG/PNG/GIF/WebP）';
+            uploadStatus.className = 'form-text text-danger';
+            uploadBtn.disabled = true;
+            selectedFile = null;
+            return;
+        }
+        
+        // 验证文件大小（最大5MB）
+        if (file.size > 5 * 1024 * 1024) {
+            uploadStatus.textContent = '图片文件过大，最大支持5MB';
+            uploadStatus.className = 'form-text text-danger';
+            uploadBtn.disabled = true;
+            selectedFile = null;
+            return;
+        }
+        
+        selectedFile = file;
+        uploadBtn.disabled = false;
+        uploadBtnText.textContent = '上传';
+        uploadStatus.textContent = `已选择: ${file.name} (${(file.size / 1024).toFixed(2)} KB)`;
+        uploadStatus.className = 'form-text text-success';
+        
+        // 显示预览
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            document.getElementById('imagePreview').src = e.target.result;
+            document.getElementById('imagePreviewRow').style.display = 'block';
+        };
+        reader.readAsDataURL(file);
+    } else {
+        selectedFile = null;
+        uploadBtn.disabled = true;
+        uploadBtnText.textContent = '上传';
+        uploadStatus.textContent = '';
+        uploadStatus.className = 'form-text';
+        document.getElementById('imagePreviewRow').style.display = 'none';
+    }
+}
+
+async function uploadLocalImage() {
+    if (!selectedFile) {
+        alert('请先选择图片文件');
+        return;
+    }
+    
+    const skinId = document.getElementById('skinId').value;
+    const uploadBtn = document.getElementById('uploadBtn');
+    const uploadBtnText = document.getElementById('uploadBtnText');
+    const uploadStatus = document.getElementById('uploadStatus');
+    
+    try {
+        uploadBtn.disabled = true;
+        uploadBtnText.textContent = '上传中...';
+        uploadStatus.textContent = '正在上传和处理图片...';
+        uploadStatus.className = 'form-text text-info';
+        
+        const formData = new FormData();
+        formData.append('file', selectedFile);
+        if (skinId) {
+            formData.append('skin_id', skinId);
+        }
+        
+        const response = await fetch('/api/admin/images/upload', {
+            method: 'POST',
+            body: formData
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            // 更新表单字段
+            document.getElementById('skinImage').value = result.url;
+            document.getElementById('skinImageId').value = '';
+            
+            // 更新预览
+            document.getElementById('imagePreview').src = result.url;
+            
+            uploadStatus.textContent = '图片上传成功！';
+            uploadStatus.className = 'form-text text-success';
+            
+            // 清空文件选择
+            document.getElementById('skinImageFile').value = '';
+            selectedFile = null;
+            uploadBtn.disabled = true;
+            uploadBtnText.textContent = '上传';
+            
+            // 3秒后清除状态
+            setTimeout(() => {
+                uploadStatus.textContent = '';
+                uploadStatus.className = 'form-text';
+            }, 3000);
+        } else {
+            uploadStatus.textContent = '上传失败: ' + (result.error || '未知错误');
+            uploadStatus.className = 'form-text text-danger';
+            uploadBtn.disabled = false;
+            uploadBtnText.textContent = '上传';
+        }
+    } catch (error) {
+        console.error('上传图片失败:', error);
+        uploadStatus.textContent = '上传失败，请稍后重试';
+        uploadStatus.className = 'form-text text-danger';
+        uploadBtn.disabled = false;
+        uploadBtnText.textContent = '上传';
+    }
+}
+
+function showAddModal() {
+    document.getElementById('skinModalTitle').textContent = '添加皮肤';
+    document.getElementById('skinId').value = '';
+    document.getElementById('heroName').value = '';
+    document.getElementById('skinName').value = '';
+    document.getElementById('skinImageId').value = '';
+    document.getElementById('skinImage').value = '';
+    document.getElementById('imageIdFormat').value = 'auto';
+    
+    // 更新占位符
+    updateImageIdPlaceholder();
+    
+    // 清空图片上传相关
+    document.getElementById('skinImageFile').value = '';
+    selectedFile = null;
+    document.getElementById('uploadBtn').disabled = true;
+    document.getElementById('uploadBtnText').textContent = '上传';
+    document.getElementById('uploadStatus').textContent = '';
+    document.getElementById('uploadStatus').className = 'form-text';
+    document.getElementById('imagePreviewRow').style.display = 'none';
+    document.getElementById('imageIdPreview').style.display = 'none';
+    
+    renderHeroFilters(heroNames);
+    skinModal.show();
+}
+
+async function showEditModal(skinId) {
+    try {
+        const response = await fetch(`/api/admin/skins?page=1&hero=all&search=`);
+        const result = await response.json();
+        
+        if (result.success) {
+            const skin = result.allSkins.find(s => s.id === skinId);
+            if (skin) {
+                document.getElementById('skinModalTitle').textContent = '编辑皮肤';
+                document.getElementById('skinId').value = skin.id;
+                document.getElementById('skinName').value = skin.name;
+                document.getElementById('skinImageId').value = skin.image_id || '';
+                document.getElementById('skinImage').value = skin.image || '';
+                renderHeroFilters(heroNames);
+                document.getElementById('heroName').value = skin.hero_name;
+                
+                // 根据图片ID格式自动选择格式选项
+                const imageId = skin.image_id || '';
+                let format = 'auto';
+                if (imageId.includes('-')) {
+                    format = 'official';
+                } else if (skin.image && skin.image.includes('.png')) {
+                    format = 'png';
+                }
+                document.getElementById('imageIdFormat').value = format;
+                updateImageIdPlaceholder();
+                
+                // 显示现有图片预览
+                if (skin.image) {
+                    document.getElementById('imagePreview').src = skin.image;
+                    document.getElementById('imagePreviewRow').style.display = 'block';
+                } else {
+                    document.getElementById('imagePreviewRow').style.display = 'none';
+                }
+                
+                // 清空图片上传相关
+                document.getElementById('skinImageFile').value = '';
+                selectedFile = null;
+                document.getElementById('uploadBtn').disabled = true;
+                document.getElementById('uploadBtnText').textContent = '上传';
+                document.getElementById('uploadStatus').textContent = '';
+                document.getElementById('uploadStatus').className = 'form-text';
+                
+                // 显示图片ID预览
+                previewSkinImageUrl();
+                
+                skinModal.show();
+            }
+        }
+    } catch (error) {
+        console.error('加载皮肤详情失败:', error);
+    }
+}
+
+async function saveSkin() {
+    const skinId = document.getElementById('skinId').value;
+    const data = {
+        hero_name: document.getElementById('heroName').value,
+        name: document.getElementById('skinName').value,
+        image_id: document.getElementById('skinImageId').value || '',
+        image: document.getElementById('skinImage').value || ''
+    };
+    
+    try {
+        const url = skinId ? `/api/admin/skins/${skinId}` : '/api/admin/skins';
+        const method = skinId ? 'PUT' : 'POST';
+        
+        const response = await fetch(url, {
+            method: method,
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            skinModal.hide();
+            loadSkins(currentPage);
+        } else {
+            alert(result.error || '保存失败');
+        }
+    } catch (error) {
+        console.error('保存皮肤失败:', error);
+        alert('保存失败，请稍后重试');
+    }
+}
+
+function showDeleteModal(skinId) {
+    deletingSkinId = skinId;
+    deleteModal.show();
+}
+
+async function confirmDelete() {
+    if (!deletingSkinId) return;
+    
+    try {
+        const response = await fetch(`/api/admin/skins/${deletingSkinId}`, { method: 'DELETE' });
+        const result = await response.json();
+        
+        if (result.success) {
+            deleteModal.hide();
+            loadSkins(currentPage);
+        } else {
+            alert(result.error || '删除失败');
+        }
+    } catch (error) {
+        console.error('删除皮肤失败:', error);
+        alert('删除失败，请稍后重试');
+    }
+}
+
+async function resetSkins() {
+    if (!confirm('确定要重置皮肤数据为官方数据吗？这将清除所有自定义皮肤！')) {
+        return;
+    }
+    
+    try {
+        const response = await fetch('/api/admin/skins/reset', { method: 'POST' });
+        const result = await response.json();
+        
+        if (result.success) {
+            alert('重置成功！');
+            loadSkins(1);
+        } else {
+            alert(result.error || '重置失败');
+        }
+    } catch (error) {
+        console.error('重置皮肤失败:', error);
+        alert('重置失败，请稍后重试');
+    }
+}
+
+function escapeHtml(text) {
+    if (!text) return '';
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+</script>
+{% endblock %}
