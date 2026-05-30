@@ -3,21 +3,17 @@
 """
 from flask import Blueprint, render_template, redirect, url_for, request, flash, jsonify, abort
 from flask_login import login_required, current_user
-from models import db, User, Account, Region, Hero, HeroOwnership, Skin, SkinOwnership, get_hero_images
+from .models import db, User, Account, Region, Hero, HeroOwnership, Skin, SkinOwnership, get_hero_images
 from pypinyin import lazy_pinyin
 
 main_bp = Blueprint('main', __name__)
 
-
-# ==================== 公开路由 ====================
 
 @main_bp.route('/')
 def index():
     """首页"""
     return render_template('index.html')
 
-
-# ==================== 账号管理 ====================
 
 @main_bp.route('/dashboard')
 @login_required
@@ -64,7 +60,6 @@ def delete_account(account_id):
     if account.user_id != current_user.id:
         abort(403)
     
-    # 先删除关联的皮肤拥有记录
     SkinOwnership.query.filter_by(account_id=account.id).delete()
     
     db.session.delete(account)
@@ -109,8 +104,6 @@ def reorder_accounts():
     return jsonify({'success': True})
 
 
-# ==================== 区服管理 ====================
-
 @main_bp.route('/accounts/<int:account_id>')
 @login_required
 def account_detail(account_id):
@@ -144,7 +137,6 @@ def add_region(account_id):
     region = Region(account_id=account_id, name=region_name)
     db.session.add(region)
     
-    # 自动添加默认英雄
     default_heroes = Hero.get_default_heroes()
     for hero in default_heroes:
         ownership = HeroOwnership(
@@ -173,7 +165,6 @@ def delete_region(region_id):
     if account.user_id != current_user.id:
         abort(403)
     
-    # 先删除关联的皮肤拥有记录
     SkinOwnership.query.filter_by(region_id=region.id).delete()
     
     db.session.delete(region)
@@ -222,8 +213,6 @@ def reorder_regions(account_id):
     return jsonify({'success': True})
 
 
-# ==================== 英雄管理 ====================
-
 @main_bp.route('/regions/<int:region_id>/heroes')
 @login_required
 def heroes(region_id):
@@ -234,15 +223,12 @@ def heroes(region_id):
     if account.user_id != current_user.id:
         abort(403)
     
-    # 获取所有英雄和已拥有的英雄
     all_heroes = Hero.query.all()
     owned_hero_names = HeroOwnership.get_owned_heroes(account.id, region.id)
     
-    # 按拼音排序，已拥有的排在前面
     def sort_key(hero):
         pinyin = lazy_pinyin(hero.name)
         is_owned = hero.name in owned_hero_names
-        # 已拥有的排在前面（0在前，1在后），然后按拼音排序
         return (0 if is_owned else 1, pinyin)
     
     heroes = sorted(all_heroes, key=sort_key)
@@ -272,7 +258,6 @@ def update_hero(region_id):
     owned = request.form.get('owned') == 'true'
     
     if owned:
-        # 添加拥有记录
         existing = HeroOwnership.query.filter_by(
             account_id=account.id,
             region_id=region.id,
@@ -286,7 +271,6 @@ def update_hero(region_id):
             )
             db.session.add(ownership)
     else:
-        # 移除拥有记录
         HeroOwnership.query.filter_by(
             account_id=account.id,
             region_id=region.id,
@@ -333,8 +317,6 @@ def get_region_stats(region_id):
     return jsonify(stats)
 
 
-# ==================== 英雄搜索API ====================
-
 @main_bp.route('/api/heroes/search')
 @login_required
 def search_heroes():
@@ -347,8 +329,6 @@ def search_heroes():
     results = Hero.search(query)
     return jsonify([hero.to_dict() for hero in results])
 
-
-# ==================== 个人中心 ====================
 
 @main_bp.route('/profile')
 @login_required
@@ -393,8 +373,6 @@ def change_password():
     return jsonify({'success': True})
 
 
-# ==================== 英雄查询功能 ====================
-
 @main_bp.route('/hero-search')
 @login_required
 def hero_search():
@@ -405,16 +383,12 @@ def hero_search():
 @main_bp.route('/api/search/hero')
 @login_required
 def api_search_hero_ownership():
-    """查询英雄拥有情况API
-    
-    查询当前用户的所有账号和区服中，哪些已拥有指定英雄
-    """
+    """查询英雄拥有情况API"""
     hero_name = request.args.get('hero', '').strip()
     
     if not hero_name:
         return jsonify({'success': False, 'error': '请输入英雄名称'}), 400
     
-    # 查找匹配的英雄（支持模糊搜索）
     hero = Hero.query.filter(Hero.name.like(f'%{hero_name}%')).first()
     
     if not hero:
@@ -424,20 +398,16 @@ def api_search_hero_ownership():
             'results': []
         })
     
-    # 查询当前用户的所有账号
     accounts = Account.query.filter_by(user_id=current_user.id).order_by(Account.sort_order).all()
     
     results = []
     
     for account in accounts:
-        # 查询该账号下拥有此英雄的区服
         account_regions = []
         
-        # 获取该账号的所有区服
         regions = Region.query.filter_by(account_id=account.id).order_by(Region.sort_order).all()
         
         for region in regions:
-            # 检查是否拥有该英雄
             ownership = HeroOwnership.query.filter_by(
                 account_id=account.id,
                 region_id=region.id,
@@ -450,7 +420,6 @@ def api_search_hero_ownership():
                     'regionName': region.name
                 })
         
-        # 如果该账号下有区服拥有此英雄，添加到结果
         if account_regions:
             results.append({
                 'accountId': account.id,
@@ -470,11 +439,7 @@ def api_search_hero_ownership():
 @main_bp.route('/api/search/skin')
 @login_required
 def api_search_skin_ownership():
-    """查询皮肤拥有情况API
-    
-    查询当前用户的所有账号和区服中，哪些已拥有指定皮肤
-    支持输入英雄名称（查询该英雄所有皮肤）或皮肤名称
-    """
+    """查询皮肤拥有情况API"""
     query = request.args.get('query', '').strip()
     
     if not query:
@@ -483,17 +448,14 @@ def api_search_skin_ownership():
     matched_skin = None
     hero_name = None
     
-    # 先尝试作为皮肤名称匹配
     skin = Skin.query.filter(Skin.name.like(f'%{query}%')).first()
     if skin:
         matched_skin = skin
         hero_name = skin.hero_name
     
-    # 如果没有匹配到皮肤，尝试作为英雄名称匹配
     if not matched_skin:
         hero = Hero.query.filter(Hero.name.like(f'%{query}%')).first()
         if hero:
-            # 获取该英雄的第一个皮肤
             skin = Skin.query.filter_by(hero_name=hero.name).first()
             if skin:
                 matched_skin = skin
@@ -507,7 +469,6 @@ def api_search_skin_ownership():
             'results': []
         })
     
-    # 查询当前用户的所有账号
     accounts = Account.query.filter_by(user_id=current_user.id).order_by(Account.sort_order).all()
     
     results = []
@@ -515,17 +476,13 @@ def api_search_skin_ownership():
     for account in accounts:
         account_regions = []
         
-        # 获取该账号的所有区服
         regions = Region.query.filter_by(account_id=account.id).order_by(Region.sort_order).all()
         
         for region in regions:
-            # 获取该区服已拥有的皮肤
             owned_skin_ids = SkinOwnership.get_owned_skins(account.id, region.id)
             
-            # 获取该英雄的所有皮肤
             hero_skins = Skin.query.filter_by(hero_name=matched_skin.hero_name).all()
             
-            # 筛选已拥有的皮肤
             owned_skins = []
             for s in hero_skins:
                 if s.id in owned_skin_ids:
@@ -534,7 +491,6 @@ def api_search_skin_ownership():
                         'skinName': s.name
                     })
             
-            # 如果该区服拥有该英雄的任何皮肤，添加到结果
             if owned_skins:
                 account_regions.append({
                     'regionId': region.id,
@@ -542,7 +498,6 @@ def api_search_skin_ownership():
                     'ownedSkins': owned_skins
                 })
         
-        # 如果该账号下有区服拥有该英雄的皮肤，添加到结果
         if account_regions:
             results.append({
                 'accountId': account.id,
@@ -560,15 +515,11 @@ def api_search_skin_ownership():
     })
 
 
-# ==================== 错误处理 ====================
-
 @main_bp.route('/favicon.ico')
 def favicon():
     """处理favicon请求"""
     return redirect('/static/favicon.ico')
 
-
-# ==================== 皮肤管理 ====================
 
 @main_bp.route('/regions/<int:region_id>/skins')
 @login_required
@@ -580,31 +531,25 @@ def skins(region_id):
     if account.user_id != current_user.id:
         abort(403)
     
-    # 获取所有皮肤和已拥有的皮肤
     all_skins = Skin.query.all()
     owned_skin_ids = SkinOwnership.get_owned_skins(account.id, region.id)
     
-    # 获取所有英雄数据（用于职业）
     heroes = Hero.query.all()
     hero_roles = {hero.name: hero.role for hero in heroes}
     
-    # 按英雄分组
     skins_by_hero = {}
     for skin in all_skins:
         if skin.hero_name not in skins_by_hero:
             skins_by_hero[skin.hero_name] = []
         skins_by_hero[skin.hero_name].append(skin)
     
-    # 对每个英雄的皮肤按ID排序
     for hero_name in skins_by_hero:
         skins_by_hero[hero_name].sort(key=lambda s: s.id)
     
-    # 按英雄名称拼音排序
     sorted_hero_names = sorted(skins_by_hero.keys(), key=lambda x: lazy_pinyin(x))
     
     skin_stats = SkinOwnership.get_skin_stats(account.id, region.id)
     
-    # 职业选项
     all_roles = ['全部', '坦克', '战士', '刺客', '法师', '射手', '辅助']
     
     return render_template('skins.html',
@@ -659,12 +604,11 @@ def get_skin_stats(region_id):
 @login_required
 def collection():
     """收藏室/图鉴页面 - 显示用户所有账号所有区服的英雄和皮肤（去重）"""
-    from models import get_user_collection
+    from .models import get_user_collection
     from pypinyin import lazy_pinyin
     
     collection_data = get_user_collection(current_user.id)
     
-    # 按拼音排序英雄（用于皮肤部分）
     sorted_hero_names = sorted(collection_data['skins_by_hero'].keys(), key=lambda x: lazy_pinyin(x))
     
     return render_template('collection.html',

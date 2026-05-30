@@ -5,11 +5,11 @@ import os
 import hashlib
 from PIL import Image
 from io import BytesIO
-from config import BASE_DIR
+from .config import BASE_DIR
 import warnings
 
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
-MAX_FILE_SIZE = 5 * 1024 * 1024  # 5MB
+MAX_FILE_SIZE = 5 * 1024 * 1024
 TARGET_SIZE = (120, 120)
 
 IMAGE_DIR = os.path.join(BASE_DIR, 'static', 'img')

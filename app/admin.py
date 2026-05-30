@@ -4,9 +4,9 @@
 from flask import Blueprint, render_template, jsonify, request, redirect, url_for, flash, Response, send_file, current_app
 from flask_login import login_required, current_user
 from functools import wraps
-from models import db, User, Account, Region, Hero, HeroOwnership, Skin, SkinOwnership, BackupFile, load_heroes_from_json, load_hero_images_from_json, load_hero_skins_from_json
-from image_processor import save_uploaded_file, delete_image, get_image_url
-from config import BASE_DIR
+from .models import db, User, Account, Region, Hero, HeroOwnership, Skin, SkinOwnership, BackupFile, load_heroes_from_json, load_hero_images_from_json, load_hero_skins_from_json
+from .image_processor import save_uploaded_file, delete_image, get_image_url
+from .config import BASE_DIR
 import json
 import os
 from datetime import datetime
@@ -29,8 +29,6 @@ def admin_required(f):
     return decorated_function
 
 
-# ==================== 管理后台主页 ====================
-
 @admin_bp.route('/admin/')
 @login_required
 @admin_required
@@ -41,8 +39,6 @@ def index():
     skins = Skin.query.all()
     return render_template('admin/dashboard.html', users=users, heroes=heroes, skins=skins)
 
-
-# ==================== 用户管理 ====================
 
 @admin_bp.route('/admin/users')
 @login_required
@@ -112,7 +108,6 @@ def api_update_user(user_id):
     is_admin = data.get('isAdmin')
     password = data.get('password', '')
     
-    # 检查是否至少保留一个管理员
     if user.is_admin and not is_admin:
         admin_count = User.query.filter_by(is_admin=True).count()
         if admin_count <= 1:
@@ -146,7 +141,6 @@ def api_delete_user(user_id):
     if user.id == current_user.id:
         return jsonify({'success': False, 'error': '不能删除当前登录的账号'}), 400
     
-    # 检查是否至少保留一个管理员
     if user.is_admin:
         admin_count = User.query.filter_by(is_admin=True).count()
         if admin_count <= 1:
@@ -176,8 +170,6 @@ def api_reset_password(user_id):
     return jsonify({'success': True, 'message': '密码已重置'})
 
 
-# ==================== 英雄管理 ====================
-
 @admin_bp.route('/admin/heroes')
 @login_required
 @admin_required
@@ -201,7 +193,6 @@ def api_get_heroes():
     
     query = Hero.query
     
-    # 筛选
     if role_filter != 'all':
         query = query.filter(Hero.role.like(f'%{role_filter}%'))
     
@@ -212,10 +203,8 @@ def api_get_heroes():
         is_default = is_default_filter == 'true'
         query = query.filter_by(is_default=is_default)
     
-    # 获取所有符合条件的英雄
     all_heroes = query.all()
     
-    # 排序：默认英雄排前面，然后按拼音排序
     def get_pinyin_key(hero):
         try:
             pinyin_list = pinyin(hero.name, style=Style.NORMAL)
@@ -223,7 +212,6 @@ def api_get_heroes():
         except:
             return hero.name.lower()
     
-    # 先按默认状态分组，再按拼音排序
     default_heroes = [h for h in all_heroes if h.is_default]
     non_default_heroes = [h for h in all_heroes if not h.is_default]
     
@@ -232,7 +220,6 @@ def api_get_heroes():
     
     sorted_heroes = default_heroes + non_default_heroes
     
-    # 手动分页
     total = len(sorted_heroes)
     total_pages = (total + per_page - 1) // per_page
     start = (page - 1) * per_page
@@ -240,7 +227,6 @@ def api_get_heroes():
     paginated_heroes = sorted_heroes[start:end]
     
     default_hero_names = [h.name for h in Hero.get_default_heroes()]
-    # 使用固定顺序的职业列表
     roles = ['坦克', '战士', '刺客', '法师', '射手', '辅助']
     hero_images = load_hero_images_from_json()
     
@@ -281,7 +267,6 @@ def api_create_hero():
     if Hero.query.get(name):
         return jsonify({'success': False, 'error': '英雄已存在'}), 400
     
-    # 解析发布时间
     pub_time_obj = None
     if pub_time:
         try:
@@ -321,7 +306,6 @@ def api_update_hero(hero_name):
     url = data.get('url', '')
     is_default = data.get('isDefault')
     
-    # 解析发布时间
     pub_time_obj = None
     if pub_time:
         try:
@@ -329,12 +313,10 @@ def api_update_hero(hero_name):
         except ValueError:
             pass
     
-    # 如果修改了名称，检查新名称是否已存在
     if new_name and new_name != hero_name:
         if Hero.query.get(new_name):
             return jsonify({'success': False, 'error': '新名称的英雄已存在'}), 400
         
-        # 创建新英雄记录
         new_hero = Hero(
             name=new_name,
             pinyin=pinyin_val or hero.pinyin,
@@ -346,16 +328,13 @@ def api_update_hero(hero_name):
         )
         db.session.add(new_hero)
         
-        # 更新所有相关记录
         HeroOwnership.query.filter_by(hero_name=hero_name).update({'hero_name': new_name})
         
-        # 删除旧英雄记录
         db.session.delete(hero)
         db.session.commit()
         
         return jsonify({'success': True, 'hero': new_hero.to_dict()})
     
-    # 更新字段
     if pinyin_val is not None:
         hero.pinyin = pinyin_val or None
     if role:
@@ -394,12 +373,9 @@ def api_reset_heroes():
     from datetime import datetime
     heroes_data, default_hero_names = load_heroes_from_json()
     
-    # 清空现有英雄数据
     Hero.query.delete()
     
-    # 重新导入
     for hero_data in heroes_data:
-        # 解析发布时间
         pub_time = None
         if hero_data.get('pubTime'):
             try:
@@ -427,8 +403,6 @@ def api_reset_heroes():
     })
 
 
-# ==================== 图片上传管理 ====================
-
 @admin_bp.route('/api/admin/images/upload', methods=['POST'])
 @login_required
 @admin_required
@@ -440,23 +414,20 @@ def api_upload_image():
         
         file = request.files['file']
         
-        # 可选：指定皮肤ID，用于自动更新皮肤图片
         skin_id = request.form.get('skin_id', type=int)
         
-        # 保存图片
         result, error = save_uploaded_file(file)
         
         if error:
             return jsonify({'success': False, 'error': error}), 400
         
-        # 如果指定了皮肤ID，自动更新皮肤图片
         image_url = get_image_url(result)
         
         if skin_id:
             skin = Skin.query.get(skin_id)
             if skin:
                 skin.image = image_url
-                skin.image_id = ''  # 清除image_id，使用自定义URL
+                skin.image_id = ''
                 db.session.commit()
         
         return jsonify({
@@ -470,8 +441,6 @@ def api_upload_image():
         print(f"图片上传失败: {e}")
         return jsonify({'success': False, 'error': f'上传失败: {str(e)}'}), 500
 
-
-# ==================== 皮肤管理 ====================
 
 @admin_bp.route('/admin/skins')
 @login_required
@@ -496,7 +465,6 @@ def api_get_skins():
     image_id_filter = request.args.get('imageId', 'all')
     per_page = 20
     
-    # 获取所有英雄和职业映射
     heroes = Hero.query.order_by(Hero.name).all()
     hero_names = [h.name for h in heroes]
     hero_roles = {h.name: h.role for h in heroes}
@@ -504,7 +472,6 @@ def api_get_skins():
     
     query = Skin.query
     
-    # 筛选
     if hero_filter != 'all':
         query = query.filter_by(hero_name=hero_filter)
     
@@ -514,20 +481,16 @@ def api_get_skins():
             (Skin.hero_name.like(f'%{search_query}%'))
         )
     
-    # 获取所有符合条件的皮肤
     all_skins = query.all()
     
-    # 筛选逻辑
     filtered_skins = []
     for skin in all_skins:
         skin_role = hero_roles.get(skin.hero_name, '')
         
-        # 职业筛选
         if filter_type == 'role' and role_filter != '全部':
             if not (skin_role and role_filter in skin_role):
                 continue
         
-        # image_id筛选
         if filter_type == 'imageId':
             if image_id_filter == 'has' and not skin.image_id:
                 continue
@@ -536,7 +499,6 @@ def api_get_skins():
         
         filtered_skins.append(skin)
     
-    # 排序：按英雄拼音排序
     def get_sort_key(skin):
         try:
             pinyin_list = pinyin(skin.hero_name, style=Style.NORMAL)
@@ -547,14 +509,12 @@ def api_get_skins():
     
     sorted_skins = sorted(filtered_skins, key=get_sort_key)
     
-    # 手动分页
     total = len(sorted_skins)
     total_pages = (total + per_page - 1) // per_page
     start = (page - 1) * per_page
     end = start + per_page
     paginated_skins = sorted_skins[start:end]
     
-    # 构建带职业的皮肤数据
     def build_skin_dict(skin):
         skin_dict = skin.to_dict()
         skin_dict['role'] = hero_roles.get(skin.hero_name, '')
@@ -590,11 +550,9 @@ def api_create_skin():
     if not hero_name or not name:
         return jsonify({'success': False, 'error': '英雄和皮肤名称不能为空'}), 400
     
-    # 检查英雄是否存在
     if not Hero.query.get(hero_name):
         return jsonify({'success': False, 'error': '英雄不存在'}), 400
     
-    # 检查皮肤是否已存在
     existing = Skin.query.filter_by(hero_name=hero_name, name=name).first()
     if existing:
         return jsonify({'success': False, 'error': '该英雄的同名皮肤已存在'}), 400
@@ -624,13 +582,10 @@ def api_update_skin(skin_id):
     image_id = data.get('image_id', '').strip()
     image = data.get('image', '').strip()
     
-    # 如果修改了英雄或名称，检查是否重复
     if hero_name and name and (hero_name != skin.hero_name or name != skin.name):
-        # 检查英雄是否存在
         if not Hero.query.get(hero_name):
             return jsonify({'success': False, 'error': '英雄不存在'}), 400
         
-        # 检查是否重复
         existing = Skin.query.filter_by(hero_name=hero_name, name=name).first()
         if existing and existing.id != skin_id:
             return jsonify({'success': False, 'error': '该英雄的同名皮肤已存在'}), 400
@@ -649,7 +604,6 @@ def api_update_skin(skin_id):
             return jsonify({'success': False, 'error': '该英雄的同名皮肤已存在'}), 400
         skin.name = name
     
-    # 更新图片ID和头像
     skin.image_id = image_id
     skin.image = image
     
@@ -677,10 +631,8 @@ def api_reset_skins():
     """重置皮肤数据API"""
     skins_data = load_hero_skins_from_json()
     
-    # 清空现有皮肤数据
     Skin.query.delete()
     
-    # 重新导入
     for skin_data in skins_data:
         skin = Skin(
             hero_name=skin_data['hero_name'],
@@ -698,8 +650,6 @@ def api_reset_skins():
         'skins': len(skins_data)
     })
 
-
-# ==================== 备份管理 ====================
 
 @admin_bp.route('/admin/backup')
 @login_required
@@ -748,8 +698,7 @@ def api_create_backup():
         'default_heroes': default_heroes
     }
     
-    # 确保备份目录存在
-    backup_dir = Path(__file__).parent / 'backup'
+    backup_dir = Path(__file__).parent.parent / 'backup'
     backup_dir.mkdir(exist_ok=True)
     
     filename = f"wzry_backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
@@ -758,7 +707,6 @@ def api_create_backup():
     with open(filepath, 'w', encoding='utf-8') as f:
         json.dump(backup_data, f, ensure_ascii=False, indent=2)
     
-    # 记录到数据库（使用相对路径）
     relative_path = os.path.join('backup', filename)
     backup_record = BackupFile(
         filename=filename,
@@ -785,7 +733,7 @@ def api_import_backup():
             return jsonify({'success': False, 'error': '请求数据为空'}), 400
         
         backup_data = data.get('data')
-        mode = data.get('mode', 'merge')  # merge or overwrite
+        mode = data.get('mode', 'merge')
         
         if not backup_data or not isinstance(backup_data, dict) or 'heroes' not in backup_data:
             return jsonify({'success': False, 'error': '无效的备份文件格式'}), 400
@@ -797,7 +745,6 @@ def api_import_backup():
         skipped = 0
         errors = 0
         
-        # 覆盖模式：先备份用户拥有记录并清空表
         ownership_backup = []
         if mode == 'overwrite':
             ownership_backup = [
@@ -812,7 +759,6 @@ def api_import_backup():
             Hero.query.delete()
             db.session.commit()
         
-        # 收集备份中已有的英雄名称，避免重复查询
         existing_hero_names = set()
         if mode != 'overwrite':
             existing_hero_names = {h.name for h in Hero.query.all()}
@@ -825,7 +771,6 @@ def api_import_backup():
                 
                 hero_name = hero_data['name']
                 
-                # 非覆盖模式：检查是否已存在
                 if mode != 'overwrite' and hero_name in existing_hero_names:
                     skipped += 1
                     continue
@@ -843,12 +788,10 @@ def api_import_backup():
         
         db.session.commit()
         
-        # 恢复用户拥有记录（过滤掉已删除的英雄）
         restored = 0
         skipped_ownerships = 0
         if mode == 'overwrite' and ownership_backup:
             new_hero_names = {h.name for h in Hero.query.all()}
-            # 获取现有的ownership记录用于查重
             existing_ownerships = set()
             for o in HeroOwnership.query.all():
                 existing_ownerships.add((o.account_id, o.region_id, o.hero_name))
@@ -948,7 +891,6 @@ def api_restore_backup(backup_id):
         skipped = 0
         errors = 0
         
-        # 覆盖模式：先备份用户拥有记录并清空表
         ownership_backup = []
         if mode == 'overwrite':
             ownership_backup = [
@@ -963,7 +905,6 @@ def api_restore_backup(backup_id):
             Hero.query.delete()
             db.session.commit()
         
-        # 收集备份中已有的英雄名称，避免重复查询
         existing_hero_names = set()
         if mode != 'overwrite':
             existing_hero_names = {h.name for h in Hero.query.all()}
@@ -976,7 +917,6 @@ def api_restore_backup(backup_id):
                 
                 hero_name = hero_data['name']
                 
-                # 非覆盖模式：检查是否已存在
                 if mode != 'overwrite' and hero_name in existing_hero_names:
                     skipped += 1
                     continue
@@ -994,13 +934,10 @@ def api_restore_backup(backup_id):
         
         db.session.commit()
         
-        # 恢复用户拥有记录（检查重复）
         restored = 0
         skipped_ownerships = 0
         if mode == 'overwrite' and ownership_backup:
-            # 获取新导入的英雄名称集合
             new_hero_names = {h.name for h in Hero.query.all()}
-            # 获取现有的ownership记录用于查重（此时应该为空，因为已经删除了）
             existing_ownerships = set()
             for o in HeroOwnership.query.all():
                 existing_ownerships.add((o.account_id, o.region_id, o.hero_name))
@@ -1047,11 +984,9 @@ def api_delete_backup(backup_id):
     """删除备份"""
     backup = BackupFile.query.get(backup_id)
     
-    # 如果记录不存在，可能是已经被删除了，返回成功
     if not backup:
         return jsonify({'success': True, 'message': '备份已删除'})
     
-    # 删除文件
     abs_path = backup.get_absolute_path()
     if os.path.exists(abs_path):
         try:
@@ -1059,7 +994,6 @@ def api_delete_backup(backup_id):
         except Exception as e:
             return jsonify({'success': False, 'error': f'删除文件失败: {e}'}), 500
     
-    # 从数据库删除记录
     db.session.delete(backup)
     db.session.commit()
     
@@ -1076,11 +1010,9 @@ def api_scan_backups():
         if not os.path.exists(backup_dir):
             return jsonify({'success': True, 'message': '备份目录不存在', 'added': 0})
         
-        # 获取数据库中已有的备份文件名
         existing_files = {b.filename for b in BackupFile.query.all()}
         
         added_count = 0
-        # 扫描 backup 文件夹
         for filename in os.listdir(backup_dir):
             if filename in existing_files:
                 continue
@@ -1089,7 +1021,6 @@ def api_scan_backups():
             if not os.path.isfile(filepath):
                 continue
             
-            # 判断文件类型
             if filename.endswith('.db'):
                 file_type = 'database'
                 backup_type = 'manual' if not filename.startswith('auto_') else 'auto'
@@ -1101,10 +1032,8 @@ def api_scan_backups():
             else:
                 continue
             
-            # 使用相对路径存储
             relative_path = os.path.join('backup', filename)
             
-            # 添加到数据库
             try:
                 backup_record = BackupFile(
                     filename=filename,
@@ -1139,10 +1068,8 @@ def api_scan_backups():
 def api_cleanup_auto_backups():
     """清理旧的自动备份，只保留最近5个"""
     try:
-        # 获取所有自动备份，按时间倒序
         auto_backups = BackupFile.query.filter_by(backup_type='auto').order_by(BackupFile.created_at.desc()).all()
         
-        # 只保留最近5个
         keep_count = 5
         if len(auto_backups) <= keep_count:
             return jsonify({
@@ -1151,10 +1078,8 @@ def api_cleanup_auto_backups():
                 'deleted': 0
             })
         
-        # 删除旧的自动备份
         deleted_count = 0
         for backup in auto_backups[keep_count:]:
-            # 删除文件
             abs_path = backup.get_absolute_path()
             if os.path.exists(abs_path):
                 try:
@@ -1163,7 +1088,6 @@ def api_cleanup_auto_backups():
                     print(f"删除自动备份文件失败 {backup.filename}: {e}")
                     continue
             
-            # 从数据库删除记录
             db.session.delete(backup)
             deleted_count += 1
         
@@ -1183,18 +1107,14 @@ def api_cleanup_auto_backups():
 def cleanup_old_auto_backups():
     """辅助函数：清理旧的自动备份，只保留最近5个"""
     try:
-        # 获取所有自动备份，按时间倒序
         auto_backups = BackupFile.query.filter_by(backup_type='auto').order_by(BackupFile.created_at.desc()).all()
         
-        # 只保留最近5个
         keep_count = 5
         if len(auto_backups) <= keep_count:
             return 0
         
-        # 删除旧的自动备份
         deleted_count = 0
         for backup in auto_backups[keep_count:]:
-            # 删除文件
             abs_path = backup.get_absolute_path()
             if os.path.exists(abs_path):
                 try:
@@ -1203,7 +1123,6 @@ def cleanup_old_auto_backups():
                     print(f"删除自动备份文件失败 {backup.filename}: {e}")
                     continue
             
-            # 从数据库删除记录
             db.session.delete(backup)
             deleted_count += 1
         
@@ -1215,37 +1134,29 @@ def cleanup_old_auto_backups():
         return 0
 
 
-# ==================== 数据库备份管理 ====================
-
 @admin_bp.route('/api/admin/dbbackup/create', methods=['POST'])
 @login_required
 @admin_required
 def api_create_db_backup():
     """创建数据库备份"""
     try:
-        from config import config
+        from .config import config
         
-        # 获取当前数据库路径
         app = current_app
         db_path = app.config.get('SQLITE_PATH', os.path.join(BASE_DIR, 'data', 'wzry.db'))
         
         if not os.path.exists(db_path):
             return jsonify({'success': False, 'error': '数据库文件不存在'}), 404
         
-        # 创建备份目录
         backup_dir = os.path.join(BASE_DIR, 'backup')
         os.makedirs(backup_dir, exist_ok=True)
         
-        # 生成备份文件名
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
         filename = f'wzry_db_backup_{timestamp}.db'
         filepath = os.path.join(backup_dir, filename)
         
-        # 复制数据库文件
-        import shutil
         shutil.copy2(db_path, filepath)
         
-        # 记录到数据库（使用相对路径）
         relative_path = os.path.join('backup', filename)
         backup_record = BackupFile(
             filename=filename,
@@ -1275,7 +1186,7 @@ def api_create_db_backup():
 def api_download_current_db():
     """直接导出当前数据库"""
     try:
-        from config import config
+        from .config import config
         
         app = current_app
         db_path = app.config.get('SQLITE_PATH', os.path.join(BASE_DIR, 'data', 'wzry.db'))
@@ -1332,26 +1243,21 @@ def api_import_db_backup():
         if file.filename == '':
             return jsonify({'success': False, 'error': '没有选择文件'}), 400
         
-        # 检查文件扩展名
         if not file.filename.endswith('.db'):
             return jsonify({'success': False, 'error': '只支持 .db 格式的数据库文件'}), 400
         
-        # 创建备份目录
         backup_dir = os.path.join(BASE_DIR, 'backup')
         os.makedirs(backup_dir, exist_ok=True)
         
-        # 保存文件
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
         filename = f"imported_{timestamp}_{file.filename}"
         filepath = os.path.join(backup_dir, filename)
         file.save(filepath)
         
-        # 验证是否是有效的SQLite数据库
         try:
             import sqlite3
             conn = sqlite3.connect(filepath)
             cursor = conn.cursor()
-            # 检查是否有users表（基本验证）
             cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='users'")
             if not cursor.fetchone():
                 conn.close()
@@ -1363,7 +1269,6 @@ def api_import_db_backup():
                 os.remove(filepath)
             return jsonify({'success': False, 'error': f'无效的数据库文件: {str(e)}'}), 400
         
-        # 记录到数据库（使用相对路径）
         relative_path = os.path.join('backup', filename)
         backup_record = BackupFile(
             filename=filename,
@@ -1402,22 +1307,18 @@ def api_restore_db_backup(backup_id):
         if not os.path.exists(abs_path):
             return jsonify({'success': False, 'error': '备份文件不存在'}), 404
 
-        # 获取当前数据库路径
         app = current_app
         db_path = app.config.get('SQLITE_PATH', os.path.join(BASE_DIR, 'data', 'wzry.db'))
 
-        # 先备份当前数据库（以防万一）
         backup_dir = os.path.join(BASE_DIR, 'backup')
         os.makedirs(backup_dir, exist_ok=True)
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
         auto_backup_filename = f'auto_backup_before_restore_{timestamp}.db'
         auto_backup_path = os.path.join(backup_dir, auto_backup_filename)
 
-        import shutil
         if os.path.exists(db_path):
             shutil.copy2(db_path, auto_backup_path)
 
-            # 记录自动备份（使用相对路径）
             auto_backup_relative = os.path.join('backup', auto_backup_filename)
             auto_backup_record = BackupFile(
                 filename=auto_backup_filename,
@@ -1429,14 +1330,11 @@ def api_restore_db_backup(backup_id):
             )
             db.session.add(auto_backup_record)
 
-            # 清理旧的自动备份（只保留最近5个）
             cleanup_old_auto_backups()
 
-        # 关键：先关闭所有数据库连接，否则SQLite文件被占用无法真正替换
         db.session.remove()
         db.engine.dispose()
 
-        # 复制备份文件到数据库位置
         shutil.copy2(abs_path, db_path)
 
         db.session.commit()
@@ -1446,14 +1344,12 @@ def api_restore_db_backup(backup_id):
             'message': '数据库恢复成功，请重新登录系统',
             'auto_backup': auto_backup_filename if os.path.exists(auto_backup_path) else None,
             'need_rescan': True,
-            'need_reload': True  # 标记需要重新加载应用
+            'need_reload': True
         })
     except Exception as e:
         print(f"恢复数据库备份错误: {e}")
         return jsonify({'success': False, 'error': f'恢复失败: {str(e)}'}), 500
 
-
-# ==================== 数据库迁移 ====================
 
 @admin_bp.route('/api/admin/migration/validate', methods=['POST'])
 @login_required
@@ -1468,19 +1364,16 @@ def api_validate_migration():
         if file.filename == '':
             return jsonify({'success': False, 'error': '没有选择文件'}), 400
         
-        # 检查文件扩展名
         if not file.filename.endswith('.db'):
             return jsonify({'success': False, 'error': '只支持 .db 格式的数据库文件'}), 400
         
-        # 保存到临时目录
         import tempfile
         with tempfile.NamedTemporaryFile(delete=False, suffix='.db') as tmp:
             file.save(tmp.name)
             tmp_path = tmp.name
         
         try:
-            # 导入迁移器并验证
-            from database_migration import DatabaseMigration
+            from .database_migration import DatabaseMigration
             migration = DatabaseMigration(tmp_path)
             validation = migration.validate_old_database()
             
@@ -1489,7 +1382,6 @@ def api_validate_migration():
                 'validation': validation
             })
         finally:
-            # 删除临时文件
             if os.path.exists(tmp_path):
                 os.remove(tmp_path)
                 
@@ -1511,19 +1403,16 @@ def api_preview_migration():
         if file.filename == '':
             return jsonify({'success': False, 'error': '没有选择文件'}), 400
         
-        # 检查文件扩展名
         if not file.filename.endswith('.db'):
             return jsonify({'success': False, 'error': '只支持 .db 格式的数据库文件'}), 400
         
-        # 保存到临时目录
         import tempfile
         with tempfile.NamedTemporaryFile(delete=False, suffix='.db') as tmp:
             file.save(tmp.name)
             tmp_path = tmp.name
         
         try:
-            # 导入迁移器并验证
-            from database_migration import DatabaseMigration
+            from .database_migration import DatabaseMigration
             migration = DatabaseMigration(tmp_path)
             validation = migration.validate_old_database()
             
@@ -1533,7 +1422,6 @@ def api_preview_migration():
                     'error': validation['message']
                 }), 400
             
-            # 获取预览数据
             preview_data = {
                 'users': [],
                 'accounts': [],
@@ -1543,24 +1431,19 @@ def api_preview_migration():
                 'skin_ownerships': 0
             }
             
-            # 读取旧数据库
             import sqlite3
             conn = sqlite3.connect(tmp_path)
             cursor = conn.cursor()
             
-            # 获取用户预览
             cursor.execute("SELECT username FROM users LIMIT 10")
             preview_data['users'] = [row[0] for row in cursor.fetchall()]
             
-            # 获取账号预览
             cursor.execute("SELECT name FROM accounts LIMIT 10")
             preview_data['accounts'] = [row[0] for row in cursor.fetchall()]
             
-            # 获取区服预览
             cursor.execute("SELECT name FROM regions LIMIT 10")
             preview_data['regions'] = [row[0] for row in cursor.fetchall()]
             
-            # 获取统计
             cursor.execute("SELECT COUNT(*) FROM hero_ownership")
             preview_data['hero_ownerships'] = cursor.fetchone()[0]
             
@@ -1578,7 +1461,6 @@ def api_preview_migration():
                 'preview': preview_data
             })
         finally:
-            # 删除临时文件
             if os.path.exists(tmp_path):
                 os.remove(tmp_path)
                 
@@ -1600,25 +1482,20 @@ def api_execute_migration():
         if file.filename == '':
             return jsonify({'success': False, 'error': '没有选择文件'}), 400
         
-        # 检查文件扩展名
         if not file.filename.endswith('.db'):
             return jsonify({'success': False, 'error': '只支持 .db 格式的数据库文件'}), 400
         
-        # 获取迁移模式
-        mode = request.form.get('mode', 'merge')  # merge 或 replace
+        mode = request.form.get('mode', 'merge')
         
-        # 保存到临时目录
         import tempfile
         with tempfile.NamedTemporaryFile(delete=False, suffix='.db') as tmp:
             file.save(tmp.name)
             tmp_path = tmp.name
         
         try:
-            # 导入迁移器
-            from database_migration import DatabaseMigration
+            from .database_migration import DatabaseMigration
             migration = DatabaseMigration(tmp_path)
             
-            # 先验证
             validation = migration.validate_old_database()
             if not validation['valid']:
                 return jsonify({
@@ -1626,17 +1503,14 @@ def api_execute_migration():
                     'error': validation['message']
                 }), 400
             
-            # 执行迁移
             app = current_app._get_current_object()
             result = migration.migrate_data(app, mode)
             
             return jsonify(result)
         finally:
-            # 删除临时文件
             if os.path.exists(tmp_path):
                 os.remove(tmp_path)
                 
     except Exception as e:
         print(f"执行数据库迁移错误: {e}")
         return jsonify({'success': False, 'error': f'迁移失败: {str(e)}'}), 500
-

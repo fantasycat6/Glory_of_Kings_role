@@ -3,7 +3,7 @@
 """
 from flask import Blueprint, render_template, redirect, url_for, request, flash, jsonify
 from flask_login import login_user, logout_user, login_required, current_user
-from models import db, User
+from .models import db, User
 
 auth_bp = Blueprint('auth', __name__)
 
@@ -22,7 +22,6 @@ def login():
             flash('请输入用户名和密码', 'error')
             return render_template('auth/login.html')
         
-        # 验证用户
         user = User.query.filter_by(username=username).first()
         
         if user and user.check_password(password):
@@ -47,7 +46,6 @@ def register():
         confirm_password = request.form.get('confirmPassword', '')
         email = request.form.get('email', '').strip()
         
-        # 验证
         errors = []
         if not username or len(username) < 2:
             errors.append('用户名至少需要2个字符')
@@ -67,11 +65,9 @@ def register():
                 flash(error, 'error')
             return render_template('auth/register.html')
         
-        # 创建用户
         user = User(username=username, email=email)
         user.set_password(password)
         
-        # 第一个用户设为管理员
         if User.query.count() == 0:
             user.is_admin = True
         

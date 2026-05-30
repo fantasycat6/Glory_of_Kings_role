@@ -11,7 +11,7 @@ import os
 db = SQLAlchemy()
 
 # 英雄数据文件路径
-HEROES_JSON_PATH = os.path.join(os.path.dirname(__file__), 'data', 'heroes.json')
+HEROES_JSON_PATH = os.path.join(os.path.dirname(__file__), '..', 'data', 'heroes.json')
 
 
 def load_heroes_from_json():
@@ -100,7 +100,7 @@ def generate_skin_image_url(image_id, custom_image=''):
     Returns:
         完整的皮肤图片URL
     """
-    from config import Config
+    from .config import Config
     
     # 优先级1：自定义URL（http/https）或本地相对路径 - 用户明确输入的
     if custom_image:
@@ -563,7 +563,7 @@ class BackupFile(db.Model):
     
     def get_absolute_path(self):
         """获取绝对路径"""
-        from config import BASE_DIR
+        from .config import BASE_DIR
         import os
         # 如果已经是绝对路径，直接返回
         if os.path.isabs(self.filepath):

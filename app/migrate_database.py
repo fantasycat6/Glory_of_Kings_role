@@ -5,11 +5,10 @@
 import os
 import sys
 
-# 添加项目根目录到路径
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from models import db, Hero, load_heroes_from_json
-from config import config
+from .models import db, Hero, load_heroes_from_json
+from .config import config
 from datetime import datetime
 from flask import Flask
 
@@ -17,7 +16,6 @@ from flask import Flask
 def migrate_database(app=None):
     """执行数据库迁移"""
     if app is None:
-        # 创建临时应用
         app = Flask(__name__)
         config_name = os.environ.get('FLASK_ENV', 'default')
         app.config.from_object(config[config_name])
@@ -27,14 +25,11 @@ def migrate_database(app=None):
         try:
             print("开始数据库迁移...")
             
-            # 使用原始SQL检查和添加新字段
             from sqlalchemy import text
             
-            # 检查列是否存在
             inspector = db.inspect(db.engine)
             columns = [col['name'] for col in inspector.get_columns('heroes')]
             
-            # 检查是否所有字段都已存在
             has_pinyin = 'pinyin' in columns
             has_pub_time = 'pub_time' in columns
             has_image = 'image' in columns
@@ -43,7 +38,6 @@ def migrate_database(app=None):
             if has_pinyin and has_pub_time and has_image and has_url:
                 print("数据库已包含所有字段，无需添加新列。")
             else:
-                # 添加新字段
                 if not has_pinyin:
                     try:
                         db.session.execute(text('ALTER TABLE heroes ADD COLUMN pinyin VARCHAR(100)'))
@@ -75,14 +69,12 @@ def migrate_database(app=None):
                 db.session.commit()
                 print("数据库迁移成功！")
             
-            # 尝试从heroes.json导入新字段数据
             try:
                 heroes_data, _ = load_heroes_from_json()
                 
                 for hero_data in heroes_data:
                     hero = Hero.query.get(hero_data['name'])
                     if hero:
-                        # 更新新字段
                         if 'pinyin' in hero_data and not hero.pinyin:
                             hero.pinyin = hero_data['pinyin']
                         if 'pubTime' in hero_data and not hero.pub_time:

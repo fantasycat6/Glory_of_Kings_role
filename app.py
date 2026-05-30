@@ -1,11 +1,11 @@
 """
 Flask 应用工厂和入口点
-王者荣耀英雄统计网站
+HeroVault - 王者荣耀英雄收集统计
 """
 from flask import Flask, render_template, request, jsonify
 from flask_login import LoginManager
-from models import db, User, init_default_data
-from config import config
+from app.models import db, User, init_default_data
+from app.config import config
 import os
 
 
@@ -13,15 +13,12 @@ def create_app(config_name=None):
     """应用工厂"""
     app = Flask(__name__)
     
-    # 加载配置
     if config_name is None:
         config_name = os.environ.get('FLASK_ENV', 'default')
     app.config.from_object(config[config_name])
     
-    # 初始化扩展
     db.init_app(app)
     
-    # Flask-Login
     login_manager = LoginManager()
     login_manager.init_app(app)
     login_manager.login_view = 'auth.login'
@@ -32,16 +29,14 @@ def create_app(config_name=None):
     def load_user(user_id):
         return User.query.get(int(user_id))
     
-    # 注册蓝图
-    from auth import auth_bp
-    from routes import main_bp
-    from admin import admin_bp
+    from app.auth import auth_bp
+    from app.routes import main_bp
+    from app.admin import admin_bp
     
     app.register_blueprint(auth_bp)
     app.register_blueprint(main_bp)
     app.register_blueprint(admin_bp)
     
-    # 错误处理
     @app.errorhandler(404)
     def not_found_error(error):
         if request.path.startswith('/api/'):
@@ -61,21 +56,17 @@ def create_app(config_name=None):
             return jsonify({'error': 'Forbidden'}), 403
         return render_template('error.html', message='无权访问此页面'), 403
     
-    # 创建表并初始化数据
     with app.app_context():
         db.create_all()
         
-        # 先运行数据库迁移，添加新字段
         try:
-            from migrate_database import migrate_database
+            from app.migrate_database import migrate_database
             migrate_database(app)
         except Exception as e:
             print(f"数据库迁移失败: {e}")
         
-        # 然后初始化数据
         init_default_data()
         
-        # 扫描并同步备份文件
         scan_backup_files(app)
     
     return app
@@ -83,18 +74,15 @@ def create_app(config_name=None):
 
 def scan_backup_files(app):
     """扫描 backup 文件夹，将备份文件同步到数据库"""
-    from models import BackupFile
+    from app.models import BackupFile
     from datetime import datetime
-    import os
     
     backup_dir = os.path.join(os.path.dirname(__file__), 'backup')
     if not os.path.exists(backup_dir):
         return
     
-    # 获取数据库中已有的备份文件名
     existing_files = {b.filename for b in BackupFile.query.all()}
     
-    # 扫描 backup 文件夹
     for filename in os.listdir(backup_dir):
         if filename in existing_files:
             continue
@@ -103,7 +91,6 @@ def scan_backup_files(app):
         if not os.path.isfile(filepath):
             continue
         
-        # 判断文件类型
         if filename.endswith('.db'):
             file_type = 'database'
             backup_type = 'manual' if not filename.startswith('auto_') else 'auto'
@@ -115,10 +102,8 @@ def scan_backup_files(app):
         else:
             continue
         
-        # 使用相对路径存储
         relative_path = os.path.join('backup', filename)
         
-        # 添加到数据库
         try:
             backup_record = BackupFile(
                 filename=filename,
@@ -143,12 +128,11 @@ def scan_backup_files(app):
 
 if __name__ == '__main__':
     app = create_app()
-    # 从 app.config 读取配置，确保 .env 文件被加载
     port = app.config.get('PORT', 5000)
     debug = app.config.get('FLASK_DEBUG', True)
     
     print(f"\n{'='*50}")
-    print(f"  王者荣耀英雄统计网站")
+    print(f"  HeroVault - 王者荣耀英雄收集统计")
     print(f"  访问地址: http://127.0.0.1:{port}")
     print(f"  默认管理员: admin / admin123")
     print(f"{'='*50}\n")

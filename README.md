@@ -1,4 +1,4 @@
-# 王者荣耀英雄统计网站
+# HeroVault - 王者荣耀英雄收集统计
 
 [![Python](https://img.shields.io/badge/Python-3.10+-blue.svg)](https://www.python.org/)
 [![Flask](https://img.shields.io/badge/Flask-3.0+-green.svg)](https://flask.palletsprojects.com/)
@@ -29,6 +29,7 @@
 - 💎 **皮肤管理** - 皮肤增删改、分页展示、多种图片URL格式支持（官方/JPG/PNG）、职业筛选、图片ID筛选
 - 💾 **数据备份** - 英雄数据备份：创建、导出、导入、恢复、删除
 - 🗄️ **数据库备份** - 完整数据库备份：创建、导出、导入、恢复、删除（支持服务迁移）
+- 🔄 **数据库迁移** - 从旧版本数据库迁移数据，支持合并模式和替换模式
 - 🧹 **自动清理** - 自动备份只保留最近5个，防止磁盘空间无限增长
 - 📈 **系统概览** - 用户统计、英雄统计、皮肤统计、备份管理
 
@@ -42,8 +43,8 @@
 
 1. **克隆仓库**
 ```bash
-git clone https://github.com/fantasycat6/Glory_of_Kings_role.git
-cd Glory_of_Kings_role
+git clone https://github.com/fantasycat6/HeroVault.git
+cd HeroVault
 ```
 
 2. **安装依赖**
@@ -73,12 +74,9 @@ copy .env.example .env
 ```bash
 # 生产模式
 python app.py
-
-# Windows 用户也可以直接双击
-start.cmd
 ```
 
-4. **访问网站**
+5. **访问网站**
 打开浏览器访问 http://localhost:5000
 
 ### 默认管理员账号
@@ -90,32 +88,37 @@ start.cmd
 ## 📁 项目结构
 
 ```
-Glory_of_Kings_role/
+HeroVault/
 ├── app.py                  # 主应用入口
+├── app/                    # 应用代码目录
+│   ├── __init__.py       # 应用包初始化
+│   ├── config.py         # 配置文件
+│   ├── models.py         # 数据库模型
+│   ├── auth.py           # 认证蓝图
+│   ├── routes.py         # 主路由蓝图
+│   ├── admin.py          # 管理后台蓝图
+│   ├── database_migration.py   # 数据库迁移工具
+│   ├── migrate_database.py     # 数据库迁移脚本
+│   └── image_processor.py     # 图片处理工具
 ├── requirements.txt        # Python依赖
-├── README.md               # 项目文档
 ├── .env.example            # 环境变量示例
 ├── .gitignore              # Git忽略配置
-├── start.cmd               # Windows启动脚本
-├── config.py               # 配置文件
-├── models.py               # 数据库模型
-├── auth.py                 # 认证蓝图
-├── routes.py               # 主路由蓝图
-├── admin.py                # 管理后台蓝图
-├── admin_api.py            # 管理后台API
-├── migrate_database.py     # 数据库迁移脚本
-├── image_processor.py      # 图片处理工具
+├── README.md               # 项目文档
+├── docs/                   # 文档目录
+│   ├── DATABASE_MIGRATION_GUIDE.md     # 数据库迁移详细指南
+│   └── DATABASE_MIGRATION_QUICKSTART.md  # 数据库迁移快速入门
 ├── data/                   # 数据目录
-│   ├── wzry.db            # SQLite数据库（自动生成）
 │   └── heroes.json        # 英雄基础数据
 ├── templates/              # HTML模板
 │   ├── partials/           # 公共组件（导航栏、页脚）
 │   ├── admin/              # 管理后台页面
+│   ├── auth/               # 认证页面
 │   └── *.html              # 用户页面
-└── static/                 # 静态资源
-    ├── css/                # 样式文件
-    ├── img/                # 上传图片目录
-    └── favicon.svg         # 网站图标
+├── static/                 # 静态资源
+│   ├── css/                # 样式文件
+│   ├── img/                # 上传图片目录
+│   └── favicon.svg         # 网站图标
+└── backup/                 # 备份文件目录
 ```
 
 ## 🛠️ 技术栈
@@ -160,7 +163,7 @@ Glory_of_Kings_role/
 - **基础英雄**: 亚瑟、廉颇、后羿、安琪拉
 - **元流之子系列**: 坦克、刺客、法师、射手、辅助 五个职业版本
 
-## 💾 数据备份
+## 💾 数据备份与迁移
 
 ### 英雄数据备份（JSON格式）
 用于备份和恢复英雄基础数据，适合日常数据维护。
@@ -183,9 +186,9 @@ Glory_of_Kings_role/
 | 操作 | 说明 |
 |------|------|
 | 创建备份 | 复制当前数据库文件作为备份 |
-| 导入备份 | 上传 .db 文件到备份目录 |
+| 导入备份历史 | 上传 .db 文件到备份目录 |
 | 恢复备份 | 用备份文件完全替换当前数据库（⚠️ 会覆盖所有数据）|
-| 下载备份 | 下载数据库备份文件 |
+| 导出当前数据库 | 下载当前使用的数据库文件 |
 | 删除备份 | 删除数据库备份文件 |
 
 #### 自动备份策略
@@ -197,6 +200,40 @@ Glory_of_Kings_role/
 1. **服务迁移**: 将数据库备份下载，上传到新的服务器恢复
 2. **灾难恢复**: 数据库损坏时从备份恢复
 3. **数据回滚**: 误操作后恢复到之前的状态
+
+### 数据库迁移功能
+用于从旧版本数据库迁移数据到新版本系统，**不会丢失任何数据**。
+
+#### 主要功能
+- **验证旧数据库** - 检查数据库文件格式和内容是否有效
+- **预览迁移数据** - 在执行迁移前查看将要迁移的数据内容
+- **执行迁移** - 将旧数据库中的数据迁移到新数据库
+
+#### 迁移模式
+- **合并模式（推荐）**：保留现有数据库中的所有数据，只添加旧数据库中存在但新数据库中不存在的数据
+- **替换模式**：清空现有用户和账号数据，完全使用旧数据库中的数据
+
+#### 可迁移的数据
+| 数据类型 | 说明 | 迁移状态 |
+|---------|------|---------|
+| 用户账户 | 所有用户信息 | ✅ 完全支持 |
+| 游戏账号 | 用户的游戏账号（QQ/微信） | ✅ 完全支持 |
+| 区服信息 | 账号下的区服 | ✅ 完全支持 |
+| 英雄拥有记录 | 用户标记的已拥有英雄 | ✅ 完全支持 |
+| 皮肤数据 | 皮肤基础信息 | ✅ 完全支持 |
+| 皮肤拥有记录 | 用户标记的已拥有皮肤 | ✅ 完全支持 |
+
+#### 使用方法
+1. 登录管理后台，进入"备份管理"页面
+2. 点击"数据库迁移"选项卡
+3. 上传旧数据库文件（.db格式）
+4. 查看数据预览和统计
+5. 选择迁移模式（推荐合并模式）
+6. 点击"开始迁移"执行迁移
+
+详细文档请参考：
+- [快速入门指南](docs/DATABASE_MIGRATION_QUICKSTART.md)
+- [详细使用说明](docs/DATABASE_MIGRATION_GUIDE.md)
 
 ## 🔌 API 接口
 
@@ -263,9 +300,15 @@ Glory_of_Kings_role/
 
 #### 数据库备份（SQLite）
 - `POST /api/admin/dbbackup/create` - 创建数据库备份
+- `GET /api/admin/dbbackup/download-current` - 导出当前数据库
 - `GET /api/admin/dbbackup/<id>/download` - 下载数据库备份
 - `POST /api/admin/dbbackup/<id>/restore` - 恢复数据库备份
 - `POST /api/admin/dbbackup/import` - 导入数据库备份文件
+
+#### 数据库迁移
+- `POST /api/admin/migration/validate` - 验证旧数据库
+- `POST /api/admin/migration/preview` - 预览迁移数据
+- `POST /api/admin/migration/execute` - 执行数据库迁移
 
 ## 🔒 安全说明
 
