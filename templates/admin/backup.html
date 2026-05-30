@@ -9,7 +9,7 @@
     <!-- 英雄数据备份 -->
     <div class="row mb-4">
         <div class="col-md-6">
-            <div class="card">
+            <div class="card h-100">
                 <div class="card-header bg-primary text-white">
                     <h5 class="mb-0"><i class="bi bi-file-earmark-json"></i> 英雄数据备份</h5>
                 </div>
@@ -19,19 +19,28 @@
                         <button class="btn btn-primary" onclick="createBackup()">
                             <i class="bi bi-plus-lg"></i> 创建数据备份
                         </button>
-                        <button class="btn btn-success" onclick="exportBackup()">
-                            <i class="bi bi-download"></i> 导出数据备份
-                        </button>
                         <button class="btn btn-info" onclick="document.getElementById('importFile').click()">
                             <i class="bi bi-upload"></i> 导入数据备份
                         </button>
                         <input type="file" id="importFile" accept=".json" style="display: none;" onchange="importBackup(this)">
+                        <button class="btn btn-success" onclick="exportBackup()">
+                            <i class="bi bi-download"></i> 导出数据备份
+                        </button>
                     </div>
+                    <hr>
+                    <p class="text-info small mb-1">
+                        <i class="bi bi-info-circle"></i>
+                        英雄数据恢复仅影响英雄配置，不会影响用户账号数据
+                    </p>
+                    <p class="text-success small mb-0">
+                        <i class="bi bi-check-circle"></i>
+                        导入后可在备份列表中查看已导入的备份文件
+                    </p>
                 </div>
             </div>
         </div>
         <div class="col-md-6">
-            <div class="card">
+            <div class="card h-100">
                 <div class="card-header bg-dark text-white">
                     <h5 class="mb-0"><i class="bi bi-database"></i> 数据库备份</h5>
                 </div>
@@ -42,9 +51,12 @@
                             <i class="bi bi-plus-lg"></i> 创建数据库备份
                         </button>
                         <button class="btn btn-outline-dark" onclick="document.getElementById('importDbFile').click()">
-                            <i class="bi bi-upload"></i> 导入数据库备份
+                            <i class="bi bi-upload"></i> 导入数据库备份历史
                         </button>
                         <input type="file" id="importDbFile" accept=".db" style="display: none;" onchange="importDbBackup(this)">
+                        <button class="btn btn-success" onclick="exportDbBackup()">
+                            <i class="bi bi-download"></i> 导出当前数据库备份
+                        </button>
                     </div>
                     <hr>
                     <p class="text-warning small mb-1">
@@ -55,6 +67,86 @@
                         <i class="bi bi-info-circle"></i>
                         导入后需在下方备份列表中点击"恢复"才能生效
                     </p>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 数据库迁移 -->
+    <div class="card mb-4">
+        <div class="card-header bg-gradient text-white" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+            <h5 class="mb-0"><i class="bi bi-arrow-left-right"></i> 数据库迁移</h5>
+        </div>
+        <div class="card-body">
+            <p class="text-muted small mb-3">
+                <i class="bi bi-info-circle"></i>
+                从旧版本数据库迁移数据到当前系统，支持合并模式和替换模式
+            </p>
+            
+            <div class="row">
+                <div class="col-md-8">
+                    <div class="mb-3">
+                        <label class="form-label fw-medium">选择旧版本数据库文件</label>
+                        <div class="input-group">
+                            <input type="file" id="migrationFile" class="form-control" accept=".db" onchange="handleMigrationFileSelect(this)">
+                            <button class="btn btn-outline-primary" type="button" onclick="document.getElementById('migrationFile').click()">
+                                <i class="bi bi-folder2-open"></i> 浏览
+                            </button>
+                        </div>
+                        <small class="text-muted">支持 .db 格式的 SQLite 数据库文件</small>
+                    </div>
+                    
+                    <div id="migrationPreview" style="display: none;">
+                        <div class="alert alert-info mb-3">
+                            <h6 class="alert-heading"><i class="bi bi-check-circle"></i> 数据库验证通过</h6>
+                            <hr>
+                            <div id="migrationStats"></div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label fw-medium">迁移模式</label>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="form-check mb-2">
+                                        <input class="form-check-input" type="radio" name="migrationMode" id="migrationMerge" value="merge" checked>
+                                        <label class="form-check-label" for="migrationMerge">
+                                            <strong>合并模式（推荐）</strong>
+                                            <small class="d-block text-muted">保留现有数据，只添加新的数据</small>
+                                        </label>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="form-check mb-2">
+                                        <input class="form-check-input" type="radio" name="migrationMode" id="migrationReplace" value="replace">
+                                        <label class="form-check-label" for="migrationReplace">
+                                            <strong>替换模式</strong>
+                                            <small class="d-block text-muted">清空现有数据，完全使用旧数据</small>
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="d-grid gap-2">
+                            <button class="btn btn-gradient" onclick="executeMigration()" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border: none; color: white;">
+                                <i class="bi bi-arrow-left-right"></i> 开始迁移
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-md-4">
+                    <div class="card bg-light">
+                        <div class="card-body">
+                            <h6 class="card-title"><i class="bi bi-question-circle"></i> 迁移说明</h6>
+                            <ul class="small mb-0">
+                                <li><strong>合并模式</strong>：推荐使用，不会丢失任何现有数据</li>
+                                <li class="mt-2"><strong>替换模式</strong>：会清空现有用户数据，请谨慎使用</li>
+                                <li class="mt-2"><strong>迁移内容</strong>：用户、账号、区服、英雄/皮肤拥有记录</li>
+                                <li class="mt-2"><strong>英雄/皮肤基础数据</strong>不会被替换</li>
+                            </ul>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -416,6 +508,10 @@ function downloadDbBackup(id) {
     window.location.href = `/api/admin/dbbackup/${id}/download`;
 }
 
+function exportDbBackup() {
+    window.location.href = '/api/admin/dbbackup/download-current';
+}
+
 async function restoreDbBackup(id) {
     if (!confirm('警告：确定要从这个数据库备份恢复吗？\n\n当前数据库将被完全替换，所有现有数据（用户、账号、英雄等）都将被覆盖！\n\n恢复后需要重新登录系统。')) return;
     
@@ -437,6 +533,179 @@ async function restoreDbBackup(id) {
     } catch (error) {
         console.error('Error:', error);
         alert('恢复失败，请重试');
+    }
+}
+
+// ==================== 数据库迁移功能 ====================
+
+let selectedMigrationFile = null;
+
+function handleMigrationFileSelect(input) {
+    const file = input.files[0];
+    if (!file) return;
+    
+    // 检查文件扩展名
+    if (!file.name.endsWith('.db')) {
+        alert('只支持 .db 格式的数据库文件');
+        input.value = '';
+        return;
+    }
+    
+    selectedMigrationFile = file;
+    
+    // 显示加载中
+    const previewDiv = document.getElementById('migrationPreview');
+    const statsDiv = document.getElementById('migrationStats');
+    
+    previewDiv.style.display = 'block';
+    statsDiv.innerHTML = '<div class="text-center"><div class="spinner-border spinner-border-sm" role="status"></div> 正在验证数据库...</div>';
+    
+    // 验证数据库
+    validateMigrationFile(file);
+}
+
+async function validateMigrationFile(file) {
+    const formData = new FormData();
+    formData.append('file', file);
+    
+    try {
+        const response = await fetch('/api/admin/migration/validate', {
+            method: 'POST',
+            body: formData
+        });
+        
+        const data = await response.json();
+        const statsDiv = document.getElementById('migrationStats');
+        
+        if (data.success && data.validation.valid) {
+            const v = data.validation;
+            statsDiv.innerHTML = `
+                <div class="row">
+                    <div class="col-md-6">
+                        <p class="mb-1"><strong>用户数量：</strong>${v.users_count || 0}</p>
+                        <p class="mb-1"><strong>账号数量：</strong>${v.accounts_count || 0}</p>
+                        <p class="mb-0"><strong>区服数量：</strong>${v.regions_count || 0}</p>
+                    </div>
+                    <div class="col-md-6">
+                        <p class="mb-1"><strong>英雄记录：</strong>${v.hero_ownership_count || 0}</p>
+                        <p class="mb-1"><strong>皮肤数量：</strong>${v.skins_count || 0}</p>
+                        <p class="mb-0"><strong>皮肤记录：</strong>${v.skin_ownership_count || 0}</p>
+                    </div>
+                </div>
+                <hr>
+                <p class="mb-0 small text-success"><i class="bi bi-check-circle"></i> 数据库结构验证通过，可以进行迁移</p>
+            `;
+        } else {
+            statsDiv.innerHTML = `
+                <div class="alert alert-danger mb-0">
+                    <i class="bi bi-x-circle"></i> 数据库验证失败：${data.validation?.message || '未知错误'}
+                </div>
+            `;
+            selectedMigrationFile = null;
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        document.getElementById('migrationStats').innerHTML = `
+            <div class="alert alert-danger mb-0">
+                <i class="bi bi-x-circle"></i> 验证失败，请重试
+            </div>
+        `;
+        selectedMigrationFile = null;
+    }
+}
+
+async function executeMigration() {
+    if (!selectedMigrationFile) {
+        alert('请先选择数据库文件');
+        return;
+    }
+    
+    const mode = document.querySelector('input[name="migrationMode"]:checked').value;
+    
+    // 确认信息
+    const modeText = mode === 'merge' ? '合并模式' : '替换模式';
+    const warningText = mode === 'merge' 
+        ? '合并模式会保留现有数据，只添加新的数据。'
+        : '替换模式会清空现有用户数据！';
+    
+    if (!confirm(`确定要使用${modeText}迁移数据吗？\n\n${warningText}`)) {
+        return;
+    }
+    
+    if (mode === 'replace') {
+        if (!confirm('警告：替换模式会清空所有用户数据！\n\n再次确认是否继续？')) {
+            return;
+        }
+    }
+    
+    // 显示加载中
+    const statsDiv = document.getElementById('migrationStats');
+    statsDiv.innerHTML = `
+        <div class="text-center">
+            <div class="spinner-border spinner-border-sm" role="status"></div>
+            <span>正在迁移数据，请稍候...</span>
+        </div>
+        <div class="progress mt-2">
+            <div class="progress-bar progress-bar-striped progress-bar-animated" style="width: 100%"></div>
+        </div>
+    `;
+    
+    // 执行迁移
+    const formData = new FormData();
+    formData.append('file', selectedMigrationFile);
+    formData.append('mode', mode);
+    
+    try {
+        const response = await fetch('/api/admin/migration/execute', {
+            method: 'POST',
+            body: formData
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            const stats = data.stats;
+            statsDiv.innerHTML = `
+                <div class="alert alert-success mb-0">
+                    <h6 class="alert-heading"><i class="bi bi-check-circle"></i> 迁移成功！</h6>
+                    <hr>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <p class="mb-1">✅ 用户：${stats.users || 0} 个</p>
+                            <p class="mb-1">✅ 账号：${stats.accounts || 0} 个</p>
+                            <p class="mb-0">✅ 区服：${stats.regions || 0} 个</p>
+                        </div>
+                        <div class="col-md-6">
+                            <p class="mb-1">✅ 英雄记录：${stats.hero_ownerships || 0} 条</p>
+                            <p class="mb-1">✅ 皮肤：${stats.skins || 0} 个</p>
+                            <p class="mb-0">✅ 皮肤记录：${stats.skin_ownerships || 0} 条</p>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            // 清空文件选择
+            document.getElementById('migrationFile').value = '';
+            selectedMigrationFile = null;
+            
+            // 刷新备份列表
+            setTimeout(() => {
+                loadBackups();
+            }, 2000);
+        } else {
+            statsDiv.innerHTML = `
+                <div class="alert alert-danger mb-0">
+                    <i class="bi bi-x-circle"></i> 迁移失败：${data.error || '未知错误'}
+                </div>
+            `;
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        statsDiv.innerHTML = `
+            <div class="alert alert-danger mb-0">
+                <i class="bi bi-x-circle"></i> 迁移失败，请重试
+            </div>
+        `;
     }
 }
 </script>

@@ -2,67 +2,291 @@
 
 {% block title %}首页 - 王者荣耀英雄统计{% endblock %}
 
+{% block extra_css %}
+<style>
+    .hero-section {
+        min-height: 80vh;
+        display: flex;
+        align-items: center;
+        position: relative;
+        overflow: hidden;
+    }
+    
+    .hero-section::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: var(--primary-gradient);
+        opacity: 0.05;
+    }
+    
+    .hero-title {
+        font-size: 3.5rem;
+        font-weight: 800;
+        background: var(--primary-gradient);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+        margin-bottom: 1.5rem;
+    }
+    
+    .hero-subtitle {
+        font-size: 1.25rem;
+        color: #64748b;
+        margin-bottom: 2rem;
+        line-height: 1.8;
+    }
+    
+    .feature-icon {
+        width: 80px;
+        height: 80px;
+        background: var(--primary-gradient);
+        border-radius: 20px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0 auto 1.5rem;
+        font-size: 2rem;
+        color: white;
+        box-shadow: 0 10px 30px rgba(102, 126, 234, 0.3);
+    }
+    
+    .feature-card {
+        padding: 2rem;
+        text-align: center;
+        border-radius: 20px;
+        background: white;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        transition: all 0.3s ease;
+        height: 100%;
+    }
+    
+    .feature-card:hover {
+        transform: translateY(-8px);
+        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+    }
+    
+    .feature-title {
+        font-size: 1.25rem;
+        font-weight: 700;
+        color: #1e293b;
+        margin-bottom: 0.75rem;
+    }
+    
+    .feature-desc {
+        color: #64748b;
+        font-size: 0.95rem;
+        line-height: 1.6;
+    }
+    
+    .btn-hero {
+        padding: 1rem 2.5rem;
+        font-size: 1.1rem;
+        border-radius: 50px;
+        font-weight: 600;
+        transition: all 0.3s ease;
+    }
+    
+    .btn-hero-primary {
+        background: var(--primary-gradient);
+        border: none;
+        color: white;
+    }
+    
+    .btn-hero-primary:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 10px 30px rgba(102, 126, 234, 0.4);
+        color: white;
+    }
+    
+    .btn-hero-outline {
+        background: transparent;
+        border: 2px solid #667eea;
+        color: #667eea;
+    }
+    
+    .btn-hero-outline:hover {
+        background: var(--primary-gradient);
+        border-color: transparent;
+        color: white;
+        transform: translateY(-3px);
+    }
+    
+    .stats-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.75rem 1.5rem;
+        background: rgba(102, 126, 234, 0.1);
+        border-radius: 50px;
+        color: #667eea;
+        font-weight: 600;
+        font-size: 0.95rem;
+    }
+    
+    .decorative-circle {
+        position: absolute;
+        border-radius: 50%;
+        background: var(--primary-gradient);
+        opacity: 0.05;
+    }
+    
+    .circle-1 {
+        width: 300px;
+        height: 300px;
+        top: -100px;
+        right: -100px;
+    }
+    
+    .circle-2 {
+        width: 200px;
+        height: 200px;
+        bottom: -50px;
+        left: -50px;
+    }
+</style>
+{% endblock %}
+
 {% block content %}
-<div class="container mt-5">
-    <div class="row justify-content-center">
-        <div class="col-md-8 text-center">
-            <h1 class="display-4 mb-4">
-                <i class="bi bi-controller text-primary"></i>
-                王者荣耀英雄统计
-            </h1>
-            <p class="lead mb-4">
-                轻松管理你的王者荣耀账号英雄收藏，追踪每个区服的英雄收集进度
-            </p>
-            
-            <div class="row mt-5">
-                <div class="col-md-4">
-                    <div class="card h-100 border-0 shadow-sm">
-                        <div class="card-body">
-                            <i class="bi bi-people-fill display-4 text-primary"></i>
-                            <h5 class="card-title mt-3">多账号管理</h5>
-                            <p class="card-text text-muted">支持QQ和微信账号，区分安卓和iOS平台</p>
-                        </div>
-                    </div>
+<!-- Hero Section -->
+<section class="hero-section">
+    <div class="decorative-circle circle-1"></div>
+    <div class="decorative-circle circle-2"></div>
+    <div class="container position-relative">
+        <div class="row justify-content-center">
+            <div class="col-lg-10 text-center">
+                <div class="mb-4">
+                    <span class="stats-badge">
+                        <i class="bi bi-trophy-fill"></i>
+                        包含130位英雄数据
+                    </span>
                 </div>
-                <div class="col-md-4">
-                    <div class="card h-100 border-0 shadow-sm">
-                        <div class="card-body">
-                            <i class="bi bi-check-circle-fill display-4 text-success"></i>
-                            <h5 class="card-title mt-3">英雄标记</h5>
-                            <p class="card-text text-muted">快速标记已拥有的英雄，自动统计收集进度</p>
-                        </div>
-                    </div>
+                
+                <h1 class="hero-title">
+                    <i class="bi bi-controller"></i>
+                    王者荣耀英雄统计
+                </h1>
+                
+                <p class="hero-subtitle mx-auto" style="max-width: 700px;">
+                    轻松管理你的王者荣耀账号英雄收藏<br>
+                    追踪每个区服的英雄收集进度，见证你的荣耀之路
+                </p>
+                
+                <div class="d-flex flex-column flex-sm-row gap-3 justify-content-center">
+                    {% if current_user.is_authenticated %}
+                        <a href="{{ url_for('main.dashboard') }}" class="btn btn-hero btn-hero-primary">
+                            <i class="bi bi-speedometer2 me-2"></i>进入我的账号
+                        </a>
+                        <a href="{{ url_for('main.collection') }}" class="btn btn-hero btn-hero-outline">
+                            <i class="bi bi-collection me-2"></i>查看收藏室
+                        </a>
+                    {% else %}
+                        <a href="{{ url_for('auth.login') }}" class="btn btn-hero btn-hero-primary">
+                            <i class="bi bi-box-arrow-in-right me-2"></i>立即登录
+                        </a>
+                        <a href="{{ url_for('auth.register') }}" class="btn btn-hero btn-hero-outline">
+                            <i class="bi bi-person-plus me-2"></i>免费注册
+                        </a>
+                    {% endif %}
                 </div>
-                <div class="col-md-4">
-                    <div class="card h-100 border-0 shadow-sm">
-                        <div class="card-body">
-                            <i class="bi bi-bar-chart-fill display-4 text-info"></i>
-                            <h5 class="card-title mt-3">数据统计</h5>
-                            <p class="card-text text-muted">按职业分类统计，可视化展示收集进度</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="mt-5">
-                {% if current_user.is_authenticated %}
-                    <a href="{{ url_for('main.dashboard') }}" class="btn btn-primary btn-lg">
-                        <i class="bi bi-speedometer2"></i> 进入我的账号
-                    </a>
-                {% else %}
-                    <a href="{{ url_for('auth.login') }}" class="btn btn-outline-primary btn-lg me-2">
-                        <i class="bi bi-box-arrow-in-right"></i> 登录
-                    </a>
-                    <a href="{{ url_for('auth.register') }}" class="btn btn-primary btn-lg">
-                        <i class="bi bi-person-plus"></i> 立即注册
-                    </a>
-                {% endif %}
-            </div>
-            
-            <div class="mt-4 text-muted">
-                <small>包含130位英雄数据 | 支持自定义区服 | 自动默认英雄</small>
             </div>
         </div>
     </div>
-</div>
+</section>
+
+<!-- Features Section -->
+<section class="py-5">
+    <div class="container">
+        <div class="row g-4">
+            <div class="col-md-4">
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <i class="bi bi-people-fill"></i>
+                    </div>
+                    <h3 class="feature-title">多账号管理</h3>
+                    <p class="feature-desc">
+                        支持QQ和微信账号<br>
+                        区分安卓和iOS平台<br>
+                        统一管理更便捷
+                    </p>
+                </div>
+            </div>
+            
+            <div class="col-md-4">
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <i class="bi bi-check-circle-fill"></i>
+                    </div>
+                    <h3 class="feature-title">英雄标记</h3>
+                    <p class="feature-desc">
+                        快速标记已拥有的英雄<br>
+                        自动统计收集进度<br>
+                        一目了然
+                    </p>
+                </div>
+            </div>
+            
+            <div class="col-md-4">
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <i class="bi bi-bar-chart-fill"></i>
+                    </div>
+                    <h3 class="feature-title">数据统计</h3>
+                    <p class="feature-desc">
+                        按职业分类统计<br>
+                        可视化展示收集进度<br>
+                        数据驱动决策
+                    </p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="row g-4 mt-2">
+            <div class="col-md-4">
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <i class="bi bi-collection"></i>
+                    </div>
+                    <h3 class="feature-title">收藏室</h3>
+                    <p class="feature-desc">
+                        汇总所有账号数据<br>
+                        去重显示已拥有<br>
+                        图鉴式展示
+                    </p>
+                </div>
+            </div>
+            
+            <div class="col-md-4">
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <i class="bi bi-search"></i>
+                    </div>
+                    <h3 class="feature-title">账户查询</h3>
+                    <p class="feature-desc">
+                        查询特定英雄分布<br>
+                        快速定位账号<br>
+                        智能搜索
+                    </p>
+                </div>
+            </div>
+            
+            <div class="col-md-4">
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <i class="bi bi-cloud-arrow-up"></i>
+                    </div>
+                    <h3 class="feature-title">数据安全</h3>
+                    <p class="feature-desc">
+                        自动备份机制<br>
+                        支持数据导出<br>
+                        安全可靠
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
 {% endblock %}

@@ -21,14 +21,16 @@
 - 🔎 **英雄查询** - 查询特定英雄在哪些账号/区服中已拥有
 - 🔄 **拖动排序** - 账号和区服支持长按拖动排序
 - ✏️ **编辑功能** - 账号和区服支持编辑名称、登录方式、设备类型
+- 🏠 **收藏室/图鉴** - 汇总所有账号所有区服的英雄和皮肤，去重显示已拥有
 
 ### 管理后台
 - 👥 **用户管理** - 用户增删改、密码重置（带密码显示切换）
 - 🦸 **英雄管理** - 英雄增删改、分页展示（每页10条）、职业多选、按拼音排序、默认英雄优先显示
+- 💎 **皮肤管理** - 皮肤增删改、分页展示、多种图片URL格式支持（官方/JPG/PNG）、职业筛选、图片ID筛选
 - 💾 **数据备份** - 英雄数据备份：创建、导出、导入、恢复、删除
 - 🗄️ **数据库备份** - 完整数据库备份：创建、导出、导入、恢复、删除（支持服务迁移）
 - 🧹 **自动清理** - 自动备份只保留最近5个，防止磁盘空间无限增长
-- 📈 **系统概览** - 用户统计、英雄统计、备份管理
+- 📈 **系统概览** - 用户统计、英雄统计、皮肤统计、备份管理
 
 ## 🚀 快速开始
 
@@ -52,7 +54,7 @@ pip install -r requirements.txt
 3. **配置环境变量（可选）**
 ```bash
 # 复制环境变量示例文件
-cp .env.example .env
+copy .env.example .env
 
 # 编辑 .env 文件，根据需要修改配置
 # 生产环境请务必修改 SECRET_KEY
@@ -100,17 +102,19 @@ Glory_of_Kings_role/
 ├── auth.py                 # 认证蓝图
 ├── routes.py               # 主路由蓝图
 ├── admin.py                # 管理后台蓝图
+├── admin_api.py            # 管理后台API
+├── migrate_database.py     # 数据库迁移脚本
+├── image_processor.py      # 图片处理工具
 ├── data/                   # 数据目录
-│   ├── wzry.db             # SQLite数据库（自动生成）
-│   ├── heroes_official.json # 英雄基础数据
-│   └── hero_images.json    # 英雄头像数据
-├── backup/                 # 数据备份目录
+│   ├── wzry.db            # SQLite数据库（自动生成）
+│   └── heroes.json        # 英雄基础数据
 ├── templates/              # HTML模板
-│   ├── partials/           # 公共组件
+│   ├── partials/           # 公共组件（导航栏、页脚）
 │   ├── admin/              # 管理后台页面
 │   └── *.html              # 用户页面
 └── static/                 # 静态资源
     ├── css/                # 样式文件
+    ├── img/                # 上传图片目录
     └── favicon.svg         # 网站图标
 ```
 
@@ -142,6 +146,15 @@ Glory_of_Kings_role/
 
 > 注：部分英雄属于多个职业，总数可能超过 130
 
+### 皮肤数据
+- 总计 **799** 个皮肤（不含原皮）
+- 支持多种图片URL格式：
+  - 官方格式（腾讯CDN）
+  - JPG图片ID
+  - PNG图片ID
+  - 自定义URL
+- 支持本地上传图片，自动裁剪为120x120
+
 ### 默认英雄
 新注册的账号自动拥有以下英雄：
 - **基础英雄**: 亚瑟、廉颇、后羿、安琪拉
@@ -164,7 +177,7 @@ Glory_of_Kings_role/
 - **合并模式**: 保留现有英雄，仅添加备份中不存在的英雄
 - **覆盖模式**: 删除所有现有英雄，完全使用备份数据（保留用户收集记录）
 
-### 数据库备份（SQLite格式）⭐ 新增
+### 数据库备份（SQLite格式）
 用于完整备份整个数据库，适合服务迁移和灾难恢复。
 
 | 操作 | 说明 |
@@ -230,6 +243,14 @@ Glory_of_Kings_role/
 - `PUT /api/admin/heroes/<name>` - 更新英雄
 - `DELETE /api/admin/heroes/<name>` - 删除英雄
 
+#### 皮肤管理
+- `GET /api/admin/skins` - 获取皮肤列表（分页、筛选）
+- `POST /api/admin/skins` - 添加皮肤
+- `PUT /api/admin/skins/<id>` - 更新皮肤
+- `DELETE /api/admin/skins/<id>` - 删除皮肤
+- `POST /api/admin/skins/reset` - 重置为官方数据
+- `POST /api/admin/images/upload` - 上传皮肤图片
+
 #### 英雄数据备份（JSON）
 - `GET /api/admin/backup/list` - 获取备份列表
 - `POST /api/admin/backup/create` - 创建备份
@@ -240,7 +261,7 @@ Glory_of_Kings_role/
 - `POST /api/admin/backup/scan` - 扫描备份文件并同步到数据库
 - `POST /api/admin/backup/cleanup` - 清理旧自动备份（只保留最近5个）
 
-#### 数据库备份（SQLite）⭐ 新增
+#### 数据库备份（SQLite）
 - `POST /api/admin/dbbackup/create` - 创建数据库备份
 - `GET /api/admin/dbbackup/<id>/download` - 下载数据库备份
 - `POST /api/admin/dbbackup/<id>/restore` - 恢复数据库备份
@@ -254,6 +275,22 @@ Glory_of_Kings_role/
 - ✅ **SQL 注入防护** - 使用 SQLAlchemy ORM
 - ✅ **XSS 防护** - Jinja2 模板自动转义输出
 - ✅ **CSRF 防护** - Flask 内置 CSRF Token 支持
+
+## 🎨 界面预览
+
+网站采用现代化的渐变紫色主题设计，特点包括：
+- 渐变色导航栏和按钮
+- 圆角卡片设计
+- 柔和阴影效果
+- 流畅的动画过渡
+- 响应式布局，适配各种屏幕
+
+主要页面：
+- 🏠 **首页** - 展示功能特性，引导用户注册登录
+- 👤 **我的账号** - 管理多个游戏账号
+- 📍 **账号详情** - 管理区服和英雄收集
+- 🏆 **收藏室** - 汇总所有账号数据，去重展示已拥有
+- ⚙️ **管理后台** - 用户、英雄、皮肤、备份管理
 
 ## 🚀 部署指南
 

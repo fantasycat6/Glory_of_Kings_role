@@ -160,7 +160,6 @@
 {% block content %}
 <div class="container-fluid mt-4">
     <div class="row">
-        <!-- 左侧：收藏室内容 -->
         <div class="col-lg-9">
             <div class="d-flex justify-content-between align-items-center mb-4">
                 <div>
@@ -174,7 +173,6 @@
                 </a>
             </div>
 
-            <!-- 标签页切换 -->
             <div class="card mb-3">
                 <div class="card-body">
                     <div class="tab-filter">
@@ -188,14 +186,13 @@
                 </div>
             </div>
 
-            <!-- 搜索和筛选 -->
             <div class="card mb-3">
                 <div class="card-body">
                     <div class="row align-items-center">
-                        <div class="col-md-4 mb-2 mb-md-0">
+                        <div class="col-md-4 mb-3 mb-md-0">
                             <input type="text" class="form-control" id="searchInput" placeholder="搜索名称...">
                         </div>
-                        <div class="col-md-8" id="roleFilterContainer">
+                        <div class="col-md-8" id="filterButtonsContainer">
                             <div class="role-filter">
                                 <button class="btn btn-sm btn-outline-primary active" data-filter="all">全部</button>
                                 <button class="btn btn-sm btn-outline-primary" data-filter="owned">已拥有</button>
@@ -206,7 +203,6 @@
                 </div>
             </div>
 
-            <!-- 英雄图鉴 -->
             <div id="heroesTab">
                 <h3 class="section-title">
                     <i class="bi bi-person-badge me-2"></i>英雄图鉴
@@ -250,7 +246,6 @@
                 </div>
             </div>
 
-            <!-- 皮肤图鉴 -->
             <div id="skinsTab" style="display: none;">
                 <h3 class="section-title">
                     <i class="bi bi-t-shirt me-2"></i>皮肤图鉴
@@ -305,7 +300,6 @@
             </div>
         </div>
 
-        <!-- 右侧：统计信息 -->
         <div class="col-lg-3">
             <div class="stats-container">
                 <div class="card stats-card">
@@ -362,7 +356,6 @@
 let currentTab = 'heroes';
 let currentFilter = 'all';
 
-// 标签页切换
 document.querySelectorAll('.tab-filter .btn').forEach(btn => {
     btn.addEventListener('click', function() {
         document.querySelectorAll('.tab-filter .btn').forEach(b => b.classList.remove('active'));
@@ -370,50 +363,27 @@ document.querySelectorAll('.tab-filter .btn').forEach(btn => {
         
         currentTab = this.dataset.tab;
         
-        // 显示/隐藏对应内容
         document.getElementById('heroesTab').style.display = currentTab === 'heroes' ? '' : 'none';
         document.getElementById('skinsTab').style.display = currentTab === 'skins' ? '' : 'none';
         
-        // 更新筛选器
-        updateFilterContainer();
-        
-        // 重置筛选
         document.getElementById('searchInput').value = '';
         applyFilters();
     });
 });
 
-// 更新筛选容器
-function updateFilterContainer() {
-    const container = document.getElementById('roleFilterContainer');
-    container.innerHTML = `
-        <div class="role-filter">
-            <button class="btn btn-sm btn-outline-primary active" data-filter="all">全部</button>
-            <button class="btn btn-sm btn-outline-primary" data-filter="owned">已拥有</button>
-            <button class="btn btn-sm btn-outline-primary" data-filter="missing">未拥有</button>
-        </div>
-    `;
-    reattachFilterListeners();
-}
-
-// 重新绑定筛选监听器
-function reattachFilterListeners() {
-    document.querySelectorAll('#roleFilterContainer .btn').forEach(btn => {
-        btn.addEventListener('click', function() {
-            document.querySelectorAll('#roleFilterContainer .btn').forEach(b => b.classList.remove('active'));
-            this.classList.add('active');
-            currentFilter = this.dataset.filter;
-            applyFilters();
-        });
+document.querySelectorAll('.role-filter .btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+        document.querySelectorAll('.role-filter .btn').forEach(b => b.classList.remove('active'));
+        this.classList.add('active');
+        currentFilter = this.dataset.filter;
+        applyFilters();
     });
-}
+});
 
-// 搜索功能
 document.getElementById('searchInput').addEventListener('input', function(e) {
     applyFilters();
 });
 
-// 应用筛选
 function applyFilters() {
     const query = document.getElementById('searchInput').value.toLowerCase();
     
@@ -424,7 +394,6 @@ function applyFilters() {
     }
 }
 
-// 英雄筛选
 function applyHeroFilters(query, filter) {
     document.querySelectorAll('#heroesTab .collection-item').forEach(item => {
         const name = item.dataset.name.toLowerCase();
@@ -440,7 +409,6 @@ function applyHeroFilters(query, filter) {
     });
 }
 
-// 皮肤筛选
 function applySkinFilters(query, filter) {
     document.querySelectorAll('#skinsTab .hero-section').forEach(section => {
         let hasVisible = false;
@@ -463,8 +431,5 @@ function applySkinFilters(query, filter) {
         section.style.display = hasVisible ? '' : 'none';
     });
 }
-
-// 初始化
-reattachFilterListeners();
 </script>
 {% endblock %}
