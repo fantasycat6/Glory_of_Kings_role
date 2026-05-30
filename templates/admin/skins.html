@@ -51,11 +51,31 @@
 
     .search-container input {
         padding-left: 2.5rem;
+        border-radius: 12px;
+        border: 2px solid #e5e7eb;
+        transition: all 0.3s ease;
+        background: #f9fafb;
+    }
+    
+    .search-container input:focus {
+        border-color: #667eea;
+        box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.1);
+        background: white;
     }
     
     .role-filter .btn {
         margin-right: 5px;
         margin-bottom: 5px;
+    }
+    
+    .filter-section {
+        background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+        border-radius: 16px;
+        border: 1px solid #e2e8f0;
+    }
+    
+    .filter-section .card-body {
+        padding: 1.5rem !important;
     }
 </style>
 {% endblock %}
@@ -81,29 +101,24 @@
     </div>
 
     <!-- 筛选和搜索 -->
-    <div class="card rounded-16 shadow-sm mb-4">
+    <div class="card filter-section shadow-sm mb-4">
         <div class="card-body p-4">
-            <div class="row align-items-center mb-3">
-                <div class="col-md-6 mb-3 mb-md-0">
+            <div class="row align-items-center g-3">
+                <div class="col-md-4">
                     <div class="search-container">
                         <i class="bi bi-search search-icon"></i>
-                        <input type="text" id="searchInput" class="form-control rounded-full border-gray-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200" 
+                        <input type="text" id="searchInput" class="form-control" 
                                placeholder="搜索皮肤名称或英雄..." oninput="loadSkins()">
                     </div>
                 </div>
-                <div class="col-md-6 text-md-right">
-                    <span id="skinCount" class="form-text text-muted"></span>
-                </div>
-            </div>
-            <div class="row align-items-center">
-                <div class="col-md-3 mb-3 mb-md-0">
+                <div class="col-md-3">
                     <select id="filterType" class="form-select rounded-lg border-gray-200 focus:border-indigo-500" onchange="handleFilterTypeChange()">
                         <option value="">无筛选</option>
                         <option value="role">职业筛选</option>
                         <option value="imageId">图片ID筛选</option>
                     </select>
                 </div>
-                <div class="col-md-9">
+                <div class="col-md-5">
                     <div id="roleFilterButtons" style="display: none;">
                         <div class="role-filter">
                             <button class="btn btn-sm btn-outline-primary active" data-role="全部" onclick="handleRoleFilter(this)">全部</button>
@@ -118,9 +133,12 @@
                     <div id="imageIdFilterButtons" style="display: none;">
                         <div class="role-filter">
                             <button class="btn btn-sm btn-outline-primary active" data-filter="all" onclick="handleImageIdFilter(this)">全部</button>
-                            <button class="btn btn-sm btn-outline-primary" data-filter="has" onclick="handleImageIdFilter(this)">有图片ID</button>
                             <button class="btn btn-sm btn-outline-primary" data-filter="empty" onclick="handleImageIdFilter(this)">无图片ID</button>
+                            <button class="btn btn-sm btn-outline-primary" data-filter="has" onclick="handleImageIdFilter(this)">有图片ID</button>
                         </div>
+                    </div>
+                    <div id="noFilterHint">
+                        <span id="skinCount" class="form-text text-muted fw-medium"></span>
                     </div>
                 </div>
             </div>
@@ -200,15 +218,23 @@
                     </div>
                     <div class="row" id="imageIdPreview" style="display: none;">
                         <div class="col-12 mb-4">
-                            <label class="form-label font-medium text-gray-700">预览URL</label>
-                            <code id="previewUrl" class="text-break" style="font-size: 0.9rem; display: block; word-break: break-all; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"></code>
+                            <label class="form-label font-medium text-gray-700">图片ID生成的URL</label>
+                            <div class="input-group">
+                                <input type="text" id="previewUrl" class="form-control" readonly style="font-family: monospace; font-size: 0.85rem;">
+                                <button class="btn btn-outline-secondary" type="button" onclick="copyPreviewUrl()" id="copyUrlBtn">
+                                    复制
+                                </button>
+                            </div>
+                            <div class="form-text text-muted">点击"复制"按钮，然后粘贴到"自定义皮肤头像URL"字段</div>
                         </div>
                     </div>
                     <div class="row">
                         <div class="col-md-6 mb-4">
                             <label class="form-label font-medium text-gray-700">自定义皮肤头像 URL</label>
-                            <input type="url" id="skinImage" class="form-control rounded-lg border-gray-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200" placeholder="https://...">
-                            <div class="form-text text-muted">仅在图片ID为空时使用</div>
+                            <input type="text" id="skinImage" class="form-control rounded-lg border-gray-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200" placeholder="https://...">
+                            <div class="form-text text-muted">
+                                <strong>优先级1：</strong>完整URL (http:///https://) 或本地相对路径 (priority highest)
+                            </div>
                         </div>
                         <div class="col-md-6 mb-4">
                             <label class="form-label font-medium text-gray-700">上传本地图片</label>
@@ -278,6 +304,8 @@ let selectedFile = null;
 document.addEventListener('DOMContentLoaded', function() {
     skinModal = new bootstrap.Modal(document.getElementById('skinModal'));
     deleteModal = new bootstrap.Modal(document.getElementById('deleteModal'));
+    // 初始时显示皮肤计数
+    document.getElementById('noFilterHint').style.display = 'block';
     loadSkins();
 });
 
@@ -318,16 +346,20 @@ function handleFilterTypeChange() {
     
     const roleButtonsDiv = document.getElementById('roleFilterButtons');
     const imageIdButtonsDiv = document.getElementById('imageIdFilterButtons');
+    const noFilterHint = document.getElementById('noFilterHint');
     
     if (filterType === 'role') {
         roleButtonsDiv.style.display = 'block';
         imageIdButtonsDiv.style.display = 'none';
+        noFilterHint.style.display = 'none';
     } else if (filterType === 'imageId') {
         roleButtonsDiv.style.display = 'none';
         imageIdButtonsDiv.style.display = 'block';
+        noFilterHint.style.display = 'none';
     } else {
         roleButtonsDiv.style.display = 'none';
         imageIdButtonsDiv.style.display = 'none';
+        noFilterHint.style.display = 'block';
     }
     
     loadSkins(1);
@@ -436,7 +468,7 @@ function previewSkinImageUrl() {
     const imageId = document.getElementById('skinImageId').value.trim();
     const format = document.getElementById('imageIdFormat').value;
     const previewDiv = document.getElementById('imageIdPreview');
-    const previewUrl = document.getElementById('previewUrl');
+    const previewUrlInput = document.getElementById('previewUrl');
     
     if (!imageId) {
         previewDiv.style.display = 'none';
@@ -460,8 +492,42 @@ function previewSkinImageUrl() {
         url = `https://game-1255653016.file.myqcloud.com/manage/compress/custom_wzry_E1/${imageId}.jpg?imageMogr2/crop/120x120/gravity/center`;
     }
     
-    previewUrl.textContent = url;
+    previewUrlInput.value = url;
     previewDiv.style.display = 'block';
+}
+
+function copyPreviewUrl() {
+    const previewUrlInput = document.getElementById('previewUrl');
+    const copyBtn = document.getElementById('copyUrlBtn');
+    
+    previewUrlInput.select();
+    previewUrlInput.setSelectionRange(0, 99999);
+    
+    navigator.clipboard.writeText(previewUrlInput.value).then(() => {
+        const originalText = copyBtn.textContent;
+        copyBtn.textContent = '已复制！';
+        copyBtn.classList.remove('btn-outline-secondary');
+        copyBtn.classList.add('btn-success');
+        
+        setTimeout(() => {
+            copyBtn.textContent = originalText;
+            copyBtn.classList.remove('btn-success');
+            copyBtn.classList.add('btn-outline-secondary');
+        }, 2000);
+    }).catch(err => {
+        // 降级方案
+        document.execCommand('copy');
+        const originalText = copyBtn.textContent;
+        copyBtn.textContent = '已复制！';
+        copyBtn.classList.remove('btn-outline-secondary');
+        copyBtn.classList.add('btn-success');
+        
+        setTimeout(() => {
+            copyBtn.textContent = originalText;
+            copyBtn.classList.remove('btn-success');
+            copyBtn.classList.add('btn-outline-secondary');
+        }, 2000);
+    });
 }
 
 function handleImageFileSelect(event) {

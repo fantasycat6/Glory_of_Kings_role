@@ -653,3 +653,20 @@ def get_skin_stats(region_id):
     
     skin_stats = SkinOwnership.get_skin_stats(account.id, region.id)
     return jsonify(skin_stats)
+
+
+@main_bp.route('/collection')
+@login_required
+def collection():
+    """收藏室/图鉴页面 - 显示用户所有账号所有区服的英雄和皮肤（去重）"""
+    from models import get_user_collection
+    from pypinyin import lazy_pinyin
+    
+    collection_data = get_user_collection(current_user.id)
+    
+    # 按拼音排序英雄（用于皮肤部分）
+    sorted_hero_names = sorted(collection_data['skins_by_hero'].keys(), key=lambda x: lazy_pinyin(x))
+    
+    return render_template('collection.html',
+                         collection=collection_data,
+                         sorted_hero_names=sorted_hero_names)

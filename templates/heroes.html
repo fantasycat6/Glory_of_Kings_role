@@ -103,6 +103,68 @@
         border-color: #0d6efd;
         box-shadow: 0 0 0 3px rgba(13, 110, 253, 0.3);
     }
+    /* 跳转提示样式 */
+    .hero-card.clickable::after {
+        content: '↗';
+        position: absolute;
+        top: 8px;
+        right: 8px;
+        width: 20px;
+        height: 20px;
+        background: rgba(0, 0, 0, 0.5);
+        color: white;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 12px;
+        opacity: 0;
+        transition: opacity 0.2s;
+        pointer-events: none;
+        z-index: 20;
+    }
+    .hero-card.clickable:hover::after {
+        opacity: 1;
+    }
+    /* 开关按钮样式 */
+    .toggle-switch {
+        position: relative;
+        width: 44px;
+        height: 24px;
+        cursor: pointer;
+    }
+    .toggle-switch input {
+        opacity: 0;
+        width: 0;
+        height: 0;
+    }
+    .toggle-slider {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background-color: #ccc;
+        transition: 0.3s;
+        border-radius: 24px;
+    }
+    .toggle-slider:before {
+        position: absolute;
+        content: "";
+        height: 18px;
+        width: 18px;
+        left: 3px;
+        bottom: 3px;
+        background-color: white;
+        transition: 0.3s;
+        border-radius: 50%;
+    }
+    .toggle-switch input:checked + .toggle-slider {
+        background-color: #10b981;
+    }
+    .toggle-switch input:checked + .toggle-slider:before {
+        transform: translateX(20px);
+    }
 </style>
 {% endblock %}
 
@@ -174,9 +236,18 @@
             <div class="card mb-3" id="normalActions">
                 <div class="card-body py-2 d-flex justify-content-between align-items-center">
                     <span class="text-muted">点击英雄卡片切换拥有状态</span>
-                    <button class="btn btn-sm btn-outline-primary" onclick="enterMultiSelectMode()">
-                        <i class="bi bi-check2-square"></i> 多选
-                    </button>
+                    <div class="d-flex align-items-center gap-3">
+                        <div class="d-flex align-items-center gap-2">
+                            <span class="small text-muted">跳转详情</span>
+                            <label class="toggle-switch">
+                                <input type="checkbox" id="enableDetailJump" onchange="toggleDetailJump()">
+                                <span class="toggle-slider"></span>
+                            </label>
+                        </div>
+                        <button class="btn btn-sm btn-outline-primary" onclick="enterMultiSelectMode()">
+                            <i class="bi bi-check2-square"></i> 多选
+                        </button>
+                    </div>
                 </div>
             </div>
 
@@ -194,9 +265,7 @@
                             <span class="owned-badge">✓ 已拥有</span>
                             <div class="hero-image-container">
                                 {% if hero_image %}
-                                <a href="{{ hero_image.url }}" target="_blank" onclick="event.stopPropagation();">
-                                    <img src="{{ hero_image.image }}" alt="{{ hero.name }}" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover;">
-                                </a>
+                                <img src="{{ hero_image.image }}" alt="{{ hero.name }}" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover;">
                                 {% else %}
                                 <div class="hero-image-placeholder">
                                     <span>{{ hero.name[0] }}</span>
@@ -255,6 +324,40 @@
 
 {% block extra_js %}
 <script>
+// 将Jinja2变量传递给JavaScript
+const heroImages = {{ hero_images | tojson | safe }};
+
+// 跳转详情功能
+let enableDetailJump = false;
+
+function toggleDetailJump() {
+    enableDetailJump = document.getElementById('enableDetailJump').checked;
+    localStorage.setItem('enableDetailJump', enableDetailJump);
+    
+    // 更新所有卡片的样式
+    updateCardStyles();
+}
+
+function updateCardStyles() {
+    document.querySelectorAll('.hero-card').forEach(card => {
+        if (enableDetailJump) {
+            card.classList.add('clickable');
+        } else {
+            card.classList.remove('clickable');
+        }
+    });
+}
+
+function initDetailJump() {
+    // 从localStorage读取设置
+    const saved = localStorage.getItem('enableDetailJump');
+    if (saved !== null) {
+        enableDetailJump = saved === 'true';
+        document.getElementById('enableDetailJump').checked = enableDetailJump;
+    }
+    updateCardStyles();
+}
+
 // 切换英雄拥有状态
 async function toggleHero(heroName, element) {
     const isOwned = element.classList.contains('owned');
@@ -594,10 +697,24 @@ document.getElementById('heroGrid').addEventListener('click', function(e) {
     if (!card || isDragging) return;
     
     const heroName = card.closest('.hero-item').dataset.name;
+    
+    // 如果开启了跳转功能，跳转到详情页
+    if (enableDetailJump) {
+        const heroImage = heroImages[heroName];
+        if (heroImage && heroImage.url) {
+            window.open(heroImage.url, '_blank');
+        } else {
+            // 如果没有URL，显示提示
+            alert('该英雄没有详情页链接');
+        }
+        return;
+    }
+    
     if (isMultiSelectMode) toggleTempSelection(heroName);
     else toggleHero(heroName, card);
 });
 
 updateSelectedCount();
+initDetailJump();
 </script>
 {% endblock %}

@@ -64,7 +64,17 @@ def create_app(config_name=None):
     # 创建表并初始化数据
     with app.app_context():
         db.create_all()
+        
+        # 先运行数据库迁移，添加新字段
+        try:
+            from migrate_database import migrate_database
+            migrate_database(app)
+        except Exception as e:
+            print(f"数据库迁移失败: {e}")
+        
+        # 然后初始化数据
         init_default_data()
+        
         # 扫描并同步备份文件
         scan_backup_files(app)
     

@@ -265,9 +265,14 @@ def api_get_heroes():
 @admin_required
 def api_create_hero():
     """添加英雄API"""
+    from datetime import datetime
     data = request.get_json()
     name = data.get('name', '').strip()
+    pinyin_val = data.get('pinyin', '').strip()
     role = data.get('role', '').strip()
+    pub_time = data.get('pubTime', '')
+    image = data.get('image', '')
+    url = data.get('url', '')
     is_default = data.get('isDefault', False)
     
     if not name or not role:
@@ -276,7 +281,23 @@ def api_create_hero():
     if Hero.query.get(name):
         return jsonify({'success': False, 'error': '英雄已存在'}), 400
     
-    hero = Hero(name=name, role=role, is_default=is_default)
+    # 解析发布时间
+    pub_time_obj = None
+    if pub_time:
+        try:
+            pub_time_obj = datetime.strptime(pub_time, '%Y-%m-%d').date()
+        except ValueError:
+            pass
+    
+    hero = Hero(
+        name=name,
+        pinyin=pinyin_val or None,
+        role=role,
+        pub_time=pub_time_obj,
+        image=image or None,
+        url=url or None,
+        is_default=is_default
+    )
     db.session.add(hero)
     db.session.commit()
     
@@ -288,12 +309,25 @@ def api_create_hero():
 @admin_required
 def api_update_hero(hero_name):
     """更新英雄API"""
+    from datetime import datetime
     hero = Hero.query.get_or_404(hero_name)
     data = request.get_json()
     
     new_name = data.get('name', '').strip()
+    pinyin_val = data.get('pinyin', '').strip()
     role = data.get('role', '').strip()
+    pub_time = data.get('pubTime', '')
+    image = data.get('image', '')
+    url = data.get('url', '')
     is_default = data.get('isDefault')
+    
+    # 解析发布时间
+    pub_time_obj = None
+    if pub_time:
+        try:
+            pub_time_obj = datetime.strptime(pub_time, '%Y-%m-%d').date()
+        except ValueError:
+            pass
     
     # 如果修改了名称，检查新名称是否已存在
     if new_name and new_name != hero_name:
@@ -301,7 +335,15 @@ def api_update_hero(hero_name):
             return jsonify({'success': False, 'error': '新名称的英雄已存在'}), 400
         
         # 创建新英雄记录
-        new_hero = Hero(name=new_name, role=role or hero.role, is_default=is_default if is_default is not None else hero.is_default)
+        new_hero = Hero(
+            name=new_name,
+            pinyin=pinyin_val or hero.pinyin,
+            role=role or hero.role,
+            pub_time=pub_time_obj if pub_time_obj is not None else hero.pub_time,
+            image=image if image is not None else hero.image,
+            url=url if url is not None else hero.url,
+            is_default=is_default if is_default is not None else hero.is_default
+        )
         db.session.add(new_hero)
         
         # 更新所有相关记录
@@ -313,8 +355,17 @@ def api_update_hero(hero_name):
         
         return jsonify({'success': True, 'hero': new_hero.to_dict()})
     
+    # 更新字段
+    if pinyin_val is not None:
+        hero.pinyin = pinyin_val or None
     if role:
         hero.role = role
+    if pub_time is not None:
+        hero.pub_time = pub_time_obj
+    if image is not None:
+        hero.image = image or None
+    if url is not None:
+        hero.url = url or None
     if is_default is not None:
         hero.is_default = is_default
     
@@ -340,6 +391,7 @@ def api_delete_hero(hero_name):
 @admin_required
 def api_reset_heroes():
     """重置英雄数据API"""
+    from datetime import datetime
     heroes_data, default_hero_names = load_heroes_from_json()
     
     # 清空现有英雄数据
@@ -347,9 +399,21 @@ def api_reset_heroes():
     
     # 重新导入
     for hero_data in heroes_data:
+        # 解析发布时间
+        pub_time = None
+        if hero_data.get('pubTime'):
+            try:
+                pub_time = datetime.strptime(hero_data['pubTime'], '%Y-%m-%d').date()
+            except ValueError:
+                pass
+        
         hero = Hero(
             name=hero_data['name'],
+            pinyin=hero_data.get('pinyin'),
             role=hero_data['role'],
+            pub_time=pub_time,
+            image=hero_data.get('image'),
+            url=hero_data.get('url'),
             is_default=hero_data['name'] in default_hero_names
         )
         db.session.add(hero)

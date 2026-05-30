@@ -85,23 +85,28 @@ def generate_skin_image_url(image_id, custom_image=''):
     """
     根据image_id生成皮肤图片URL
     
-    优先级规则：
-    1. 如果有图片ID，优先使用图片ID生成URL
-    2. 只有当图片ID为空时，才使用自定义URL
+    优先级规则（明确用户手动输入的URL优先）：
+    1. 优先级1：自定义皮肤头像URL（以http://或https://开头）- 用户明确输入的完整URL
+    2. 优先级2：本地相对路径（/static/img/...）- 上传的本地图片
+    3. 优先级3：图片ID - 需要用户手动复制到自定义URL字段
     
     Args:
-        image_id: 皮肤图片ID，格式有三种:
-                  1. 腾讯官方格式: "141-2" → 生成 https://game.gtimg.cn/images/yxzj/img201606/heroimg/141/141-smallskin-2.jpg
-                  2. 压缩图片ID: "7dd876601a0d808b4d4071f31add095e" → 生成 https://game-1255653016.file.myqcloud.com/manage/compress/custom_wzry_E1/{image_id}.jpg
-                  3. PNG图片ID: "7dd876601a0d808b4d4071f31add095e" → 生成 https://game-1255653016.file.myqcloud.com/manage/custom_wzry_E1/{image_id}.png
-        custom_image: 自定义完整URL（仅在图片ID为空时使用）
+        image_id: 皮肤图片ID，仅辅助生成预览用，不自动覆盖自定义URL
+                  1. 腾讯官方格式: "141-2"
+                  2. 压缩图片ID: "7dd876601a0d808b4d4071f31add095e"
+                  3. PNG图片ID: "7dd876601a0d808b4d4071f31add095e"
+        custom_image: 用户明确输入的完整URL（http/https或本地相对路径，优先级最高
     
     Returns:
         完整的皮肤图片URL
     """
     from config import Config
     
-    # 优先级1：图片ID（大多数情况下使用）
+    # 优先级1：自定义URL（http/https）或本地相对路径 - 用户明确输入的
+    if custom_image:
+        return custom_image
+    
+    # 优先级2：图片ID - 仅当没有自定义URL时才考虑使用
     if image_id:
         # 格式1：腾讯官方格式（包含"-"）
         if '-' in image_id:
@@ -121,10 +126,6 @@ def generate_skin_image_url(image_id, custom_image=''):
                 return Config.SKIN_IMAGE_BASE_URLS[1].format(image_id=image_id)
             except Exception:
                 pass
-    
-    # 优先级2：自定义URL（仅在图片ID为空时使用）
-    if custom_image:
-        return custom_image
     
     return ''
 
@@ -277,7 +278,11 @@ class Hero(db.Model):
     __tablename__ = 'heroes'
     
     name = db.Column(db.String(50), primary_key=True)
+    pinyin = db.Column(db.String(100), nullable=True)
     role = db.Column(db.String(50), nullable=False)
+    pub_time = db.Column(db.Date, nullable=True)
+    image = db.Column(db.String(500), nullable=True)
+    url = db.Column(db.String(500), nullable=True)
     is_default = db.Column(db.Boolean, default=False)
     
     # 关系
@@ -310,6 +315,7 @@ class Hero(db.Model):
         return cls.query.filter(
             db.or_(
                 cls.name.like(search_pattern),
+                cls.pinyin.like(search_pattern),
                 cls.role.like(search_pattern)
             )
         ).order_by(cls.name).all()
@@ -317,7 +323,11 @@ class Hero(db.Model):
     def to_dict(self):
         return {
             'name': self.name,
+            'pinyin': self.pinyin,
             'role': self.role,
+            'pubTime': self.pub_time.strftime('%Y-%m-%d') if self.pub_time else None,
+            'image': self.image,
+            'url': self.url,
             'is_default': self.is_default
         }
     
@@ -653,3 +663,133 @@ def init_default_data():
 def get_hero_images():
     """获取英雄图片数据"""
     return load_hero_images_from_json()
+
+
+def get_user_collection(user_id):
+    """
+    获取用户所有账号所有区服的英雄和皮肤收藏（去重）
+    
+    Args:
+        user_id: 用户ID
+        
+    Returns:
+        dict: 包含英雄和皮肤收藏信息的字典
+    """
+    # 获取用户的所有账号
+    accounts = Account.query.filter_by(user_id=user_id).all()
+    
+    # 获取所有英雄和皮肤数据
+    all_heroes = Hero.query.all()
+    all_skins = Skin.query.all()
+    
+    # 存储去重后的英雄和皮肤
+    owned_hero_names = set()
+    owned_skin_ids = set()
+    
+    # 存储英雄来源信息（哪些账号哪些区服拥有）
+    hero_sources = {}
+    # 存储皮肤来源信息（哪些账号哪些区服拥有）
+    skin_sources = {}
+    
+    for account in accounts:
+        # 获取该账号的所有区服
+        regions = Region.query.filter_by(account_id=account.id).all()
+        
+        for region in regions:
+            # 收集英雄拥有信息
+            hero_ownerships = HeroOwnership.query.filter_by(
+                account_id=account.id,
+                region_id=region.id
+            ).all()
+            
+            for ownership in hero_ownerships:
+                hero_name = ownership.hero_name
+                owned_hero_names.add(hero_name)
+                
+                # 记录来源
+                if hero_name not in hero_sources:
+                    hero_sources[hero_name] = []
+                hero_sources[hero_name].append({
+                    'account_id': account.id,
+                    'account_name': account.name,
+                    'region_id': region.id,
+                    'region_name': region.name
+                })
+            
+            # 收集皮肤拥有信息
+            skin_ownerships = SkinOwnership.query.filter_by(
+                account_id=account.id,
+                region_id=region.id
+            ).all()
+            
+            for ownership in skin_ownerships:
+                skin_id = ownership.skin_id
+                owned_skin_ids.add(skin_id)
+                
+                # 记录来源
+                if skin_id not in skin_sources:
+                    skin_sources[skin_id] = []
+                skin_sources[skin_id].append({
+                    'account_id': account.id,
+                    'account_name': account.name,
+                    'region_id': region.id,
+                    'region_name': region.name
+                })
+    
+    # 构建返回数据
+    hero_images = get_hero_images()
+    
+    # 英雄列表，扁平化，已拥有的排在前面
+    heroes_list = []
+    for hero in all_heroes:
+        heroes_list.append({
+            'name': hero.name,
+            'role': hero.role,
+            'image': hero_images.get(hero.name, {}).get('image', ''),
+            'url': hero_images.get(hero.name, {}).get('url', ''),
+            'is_owned': hero.name in owned_hero_names,
+            'sources': hero_sources.get(hero.name, [])
+        })
+    # 排序：已拥有的排在前面，已拥有的内部按拼音排序，未拥有的也按拼音排序
+    from pypinyin import lazy_pinyin
+    heroes_list.sort(key=lambda x: (0 if x['is_owned'] else 1, lazy_pinyin(x['name'])))
+    
+    # 按职业组织皮肤
+    skins_by_hero = {}
+    for hero in all_heroes:
+        hero_skins = Skin.get_skins_by_hero(hero.name)
+        if hero_skins:
+            skins_by_hero[hero.name] = {
+                'hero_image': hero_images.get(hero.name, {}).get('image', ''),
+                'skins': [],
+                'total': 0,
+                'owned': 0
+            }
+            for skin in hero_skins:
+                skins_by_hero[hero.name]['total'] += 1
+                if skin.id in owned_skin_ids:
+                    skins_by_hero[hero.name]['owned'] += 1
+                skins_by_hero[hero.name]['skins'].append({
+                    'id': skin.id,
+                    'name': skin.name,
+                    'image': skin.get_image_url(),
+                    'is_owned': skin.id in owned_skin_ids,
+                    'sources': skin_sources.get(skin.id, [])
+                })
+    
+    # 统计总数据
+    total_heroes = len(all_heroes)
+    total_skins = len(all_skins)
+    owned_hero_count = len(owned_hero_names)
+    owned_skin_count = len(owned_skin_ids)
+    
+    return {
+        'heroes_list': heroes_list,
+        'skins_by_hero': skins_by_hero,
+        'total_heroes': total_heroes,
+        'owned_hero_count': owned_hero_count,
+        'hero_percentage': round((owned_hero_count / total_heroes * 100)) if total_heroes > 0 else 0,
+        'total_skins': total_skins,
+        'owned_skin_count': owned_skin_count,
+        'skin_percentage': round((owned_skin_count / total_skins * 100)) if total_skins > 0 else 0
+    }

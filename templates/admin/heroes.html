@@ -53,7 +53,9 @@
                         <tr>
                             <th>头像</th>
                             <th>名称</th>
+                            <th>拼音</th>
                             <th>职业</th>
+                            <th>发布时间</th>
                             <th>默认英雄</th>
                             <th>操作</th>
                         </tr>
@@ -85,9 +87,15 @@
             <div class="modal-body">
                 <form id="heroForm">
                     <input type="hidden" id="originalName">
-                    <div class="mb-3">
-                        <label for="heroName" class="form-label">英雄名称</label>
-                        <input type="text" class="form-control" id="heroName" required>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="heroName" class="form-label">英雄名称</label>
+                            <input type="text" class="form-control" id="heroName" required>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="heroPinyin" class="form-label">拼音</label>
+                            <input type="text" class="form-control" id="heroPinyin">
+                        </div>
                     </div>
                     <div class="mb-3">
                         <label class="form-label">职业（可多选）</label>
@@ -115,6 +123,24 @@
                             <input class="form-check-input" type="checkbox" id="role_坦克" name="heroRole" value="坦克">
                             <label class="form-check-label" for="role_坦克">坦克</label>
                         </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="heroPubTime" class="form-label">发布时间</label>
+                            <input type="date" class="form-control" id="heroPubTime">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">头像</label>
+                            <div class="input-group">
+                                <input type="text" class="form-control" id="heroImage" placeholder="头像URL">
+                                <input type="file" class="form-control" id="heroImageFile" accept="image/*" style="display: none;">
+                                <button class="btn btn-outline-secondary" type="button" onclick="document.getElementById('heroImageFile').click()">上传</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="heroUrl" class="form-label">官网链接</label>
+                        <input type="text" class="form-control" id="heroUrl" placeholder="英雄详情页URL">
                     </div>
                     <div class="mb-3 form-check">
                         <input type="checkbox" class="form-check-input" id="isDefault">
@@ -185,7 +211,7 @@ async function loadHeroes() {
 function renderHeroes(heroes) {
     const tbody = document.getElementById('heroesTable');
     tbody.innerHTML = heroes.map(hero => {
-        const heroImage = heroImages[hero.name]?.image || '';
+        const heroImage = hero.image || heroImages[hero.name]?.image || '';
         return `
         <tr>
             <td>
@@ -198,7 +224,9 @@ function renderHeroes(heroes) {
                 }
             </td>
             <td>${hero.name}</td>
+            <td>${hero.pinyin || '-'}</td>
             <td>${hero.role}</td>
+            <td>${hero.pubTime || '-'}</td>
             <td>
                 <span class="badge bg-${hero.is_default ? 'success' : 'secondary'}">
                     ${hero.is_default ? '是' : '否'}
@@ -254,6 +282,10 @@ function editHero(name) {
             if (hero) {
                 document.getElementById('originalName').value = hero.name;
                 document.getElementById('heroName').value = hero.name;
+                document.getElementById('heroPinyin').value = hero.pinyin || '';
+                document.getElementById('heroPubTime').value = hero.pubTime || '';
+                document.getElementById('heroImage').value = hero.image || '';
+                document.getElementById('heroUrl').value = hero.url || '';
                 
                 // 重置所有职业checkbox
                 document.querySelectorAll('input[name="heroRole"]').forEach(cb => cb.checked = false);
@@ -290,7 +322,11 @@ async function saveHero() {
     
     const data = {
         name: document.getElementById('heroName').value,
+        pinyin: document.getElementById('heroPinyin').value,
         role: selectedRoles.join('/'),
+        pubTime: document.getElementById('heroPubTime').value,
+        image: document.getElementById('heroImage').value,
+        url: document.getElementById('heroUrl').value,
         isDefault: document.getElementById('isDefault').checked
     };
     
