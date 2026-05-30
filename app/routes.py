@@ -3,7 +3,7 @@
 """
 from flask import Blueprint, render_template, redirect, url_for, request, flash, jsonify, abort
 from flask_login import login_required, current_user
-from .models import db, User, Account, Region, Hero, HeroOwnership, Skin, SkinOwnership, get_hero_images
+from .models import db, User, Account, Region, Hero, HeroOwnership, Skin, SkinOwnership, get_hero_images, load_default_skin_sort_order
 from pypinyin import lazy_pinyin
 
 main_bp = Blueprint('main', __name__)
@@ -546,17 +546,37 @@ def skins(region_id):
     for hero_name in skins_by_hero:
         skins_by_hero[hero_name].sort(key=lambda s: s.id)
     
-    sorted_hero_names = sorted(skins_by_hero.keys(), key=lambda x: lazy_pinyin(x))
-    
     skin_stats = SkinOwnership.get_skin_stats(account.id, region.id)
     
+    # 按拼音排序的英雄列表
+    sorted_hero_names_by_pinyin = sorted(skins_by_hero.keys(), key=lambda x: lazy_pinyin(x))
+    
     all_roles = ['全部', '坦克', '战士', '刺客', '法师', '射手', '辅助']
+    
+    # 从文件加载默认排序顺序（中文名字列表）
+    default_sort_order = load_default_skin_sort_order()
+    
+    # 默认按文件指定的顺序排序
+    sorted_hero_names = []
+    seen = set()
+    
+    # 先按默认顺序添加
+    for hero_name in default_sort_order:
+        if hero_name in skins_by_hero and hero_name not in seen:
+            sorted_hero_names.append(hero_name)
+            seen.add(hero_name)
+    
+    # 补充缺失的英雄（如果有）到最后，按拼音排序
+    remaining_heroes = [name for name in skins_by_hero.keys() if name not in seen]
+    remaining_heroes.sort(key=lambda x: lazy_pinyin(x))
+    sorted_hero_names.extend(remaining_heroes)
     
     return render_template('skins.html',
                          region=region,
                          account=account,
                          skins_by_hero=skins_by_hero,
                          sorted_hero_names=sorted_hero_names,
+                         sorted_hero_names_by_pinyin=sorted_hero_names_by_pinyin,
                          owned_skin_ids=owned_skin_ids,
                          skin_stats=skin_stats,
                          hero_roles=hero_roles,

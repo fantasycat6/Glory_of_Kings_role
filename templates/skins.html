@@ -141,6 +141,74 @@
         margin-right: 5px;
         margin-bottom: 5px;
     }
+    
+    /* 右侧统计面板英雄点击链接 */
+    .hero-stat-item {
+        cursor: pointer;
+        padding: 4px 8px;
+        border-radius: 6px;
+        transition: background-color 0.2s;
+    }
+    
+    .hero-stat-item:hover {
+        background-color: rgba(255, 255, 255, 0.1);
+    }
+    
+    .hero-stat-link {
+        text-decoration: none;
+        transition: color 0.2s;
+        color: #fef08a; /* 黄色，更清晰可见 */
+    }
+    
+    .hero-stat-link:hover {
+        color: white !important;
+    }
+    
+    /* 字母导航条 */
+    .alphabet-nav {
+        position: fixed;
+        right: 10px;
+        top: 50%;
+        transform: translateY(-50%);
+        z-index: 1000;
+        background: white;
+        border-radius: 20px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        padding: 10px 5px;
+        display: none;
+    }
+    
+    .alphabet-nav.active {
+        display: block;
+    }
+    
+    .alphabet-nav a {
+        display: block;
+        text-align: center;
+        padding: 3px 8px;
+        font-size: 12px;
+        color: #667eea;
+        text-decoration: none;
+        transition: all 0.2s;
+        border-radius: 4px;
+    }
+    
+    .alphabet-nav a:hover {
+        background: #667eea;
+        color: white;
+    }
+    
+    /* 排序按钮样式 */
+    .sort-btn {
+        transition: all 0.2s;
+        border-radius: 20px;
+    }
+    
+    .sort-btn.active {
+        background: #667eea;
+        border-color: #667eea;
+        color: white;
+    }
 </style>
 {% endblock %}
 
@@ -168,7 +236,7 @@
             <!-- 搜索和筛选 -->
             <div class="card mb-3">
                 <div class="card-body">
-                    <div class="row align-items-center">
+                    <div class="row align-items-center mb-3">
                         <div class="col-md-4 mb-2 mb-md-0">
                             <input type="text" class="form-control" id="searchInput" placeholder="搜索英雄或皮肤名称...">
                         </div>
@@ -181,6 +249,15 @@
                                 <button class="btn btn-sm btn-outline-primary" data-role="法师">法师</button>
                                 <button class="btn btn-sm btn-outline-primary" data-role="射手">射手</button>
                                 <button class="btn btn-sm btn-outline-primary" data-role="辅助">辅助</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row align-items-center">
+                        <div class="col-12">
+                            <div class="d-flex align-items-center">
+                                <span class="me-2 text-muted small">排序方式：</span>
+                                <button class="btn btn-sm btn-outline-secondary sort-btn active me-2" data-sort="stats">按英雄分布</button>
+                                <button class="btn btn-sm btn-outline-secondary sort-btn" data-sort="pinyin">按名称拼音</button>
                             </div>
                         </div>
                     </div>
@@ -256,13 +333,16 @@
                         </div>
                     </div>
 
-                    <h6 class="mb-3 text-white/90">按英雄分布</h6>
+                    <h6 class="mb-3 text-white">按英雄分布</h6>
                     <div id="heroStats" style="max-height: 300px; overflow-y: auto;">
-                        {% for hero_name, data in skin_stats.byHero.items() %}
-                        <div class="d-flex justify-content-between align-items-center mb-2">
-                            <span class="text-white/90">{{ hero_name }}</span>
+                        {% for hero_name in sorted_hero_names %}
+                        {% if hero_name in skin_stats.byHero %}
+                        {% set data = skin_stats.byHero[hero_name] %}
+                        <div class="d-flex justify-content-between align-items-center mb-2 hero-stat-item">
+                            <a href="#hero-{{ hero_name }}" class="hero-stat-link text-yellow-200 hover:text-white flex-1 text-left">{{ hero_name }}</a>
                             <span class="text-white">{{ data.owned }} / {{ data.total }}</span>
                         </div>
+                        {% endif %}
                         {% endfor %}
                     </div>
                 </div>
@@ -270,10 +350,127 @@
         </div>
     </div>
 </div>
+
+<!-- 字母导航条 -->
+<div class="alphabet-nav" id="alphabetNav">
+</div>
 {% endblock %}
 
 {% block extra_js %}
 <script>
+// 两种排序方式的英雄列表数据
+// heroNamesByStats 使用和右侧统计面板完全一致的英雄顺序
+const heroNamesByStats = {{ sorted_hero_names | tojson }};
+const heroNamesByPinyin = {{ sorted_hero_names_by_pinyin | tojson }};
+let currentSort = 'stats';
+let currentRole = '全部';
+
+// 获取英雄名称的首字母（简单实现）
+function getFirstLetter(heroName) {
+    const pinyinMap = {
+        'A': ['阿', '爱', '安', '敖', '艾'],
+        'B': ['白', '百', '班', '包', '鲍', '暴', '北', '贝', '本', '比', '必', '毕', '边', '变', '标', '表', '别', '宾', '冰', '兵', '丙', '波', '伯', '博', '不', '布', '步', '八'],
+        'C': ['才', '菜', '苍', '曹', '草', '策', '层', '查', '差', '长', '常', '唱', '超', '车', '彻', '陈', '成', '城', '程', '吃', '池', '迟', '持', '尺', '赤', '充', '冲', '虫', '抽', '出', '初', '除', '楚', '处', '川', '传', '船', '窗', '床', '春', '纯', '此', '从', '村', '存', '错', '婵'],
+        'D': ['达', '大', '戴', '带', '代', '待', '单', '但', '淡', '当', '党', '导', '到', '道', '得', '德', '的', '灯', '等', '低', '地', '帝', '第', '点', '电', '店', '垫', '调', '顶', '定', '东', '冬', '懂', '动', '都', '斗', '豆', '度', '短', '对', '多', '貂'],
+        'E': ['恩', '儿', '而', '二', '娥'],
+        'F': ['发', '法', '凡', '反', '饭', '方', '房', '防', '放', '飞', '非', '菲', '费', '分', '芬', '风', '封', '冯', '凤', '奉', '夫', '服', '福', '富', '父', '付', '福'],
+        'G': ['改', '干', '感', '刚', '钢', '高', '告', '哥', '歌', '格', '个', '给', '根', '跟', '更', '工', '公', '功', '宫', '共', '贡', '狗', '构', '购', '够', '古', '谷', '骨', '故', '顾', '瓜', '关', '官', '观', '管', '光', '广', '归', '规', '鬼', '贵', '桂', '国', '过', '高', '公', '弓'],
+        'H': ['哈', '孩', '海', '含', '韩', '寒', '汉', '好', '号', '喝', '和', '河', '黑', '很', '红', '后', '候', '呼', '胡', '湖', '虎', '花', '华', '化', '画', '话', '欢', '黄', '回', '会', '婚', '活', '火', '或', '货', '韩', '后'],
+        'J': ['机', '鸡', '基', '级', '极', '急', '己', '纪', '季', '记', '技', '计', '加', '家', '假', '价', '架', '间', '见', '剑', '建', '健', '江', '将', '讲', '交', '角', '脚', '教', '叫', '接', '结', '姐', '解', '戒', '借', '今', '金', '尽', '进', '近', '京', '经', '井', '景', '静', '九', '酒', '久', '就', '局', '橘', '举', '句', '觉', '决', '军', '君', '姬', '姜', '九', '嘉'],
+        'K': ['卡', '开', '看', '康', '考', '科', '可', '客', '课', '肯', '空', '孔', '口', '苦', '快', '款', '况', '矿', '狂', '铠'],
+        'L': ['拉', '来', '蓝', '兰', '老', '乐', '雷', '冷', '离', '李', '里', '理', '力', '立', '丽', '利', '连', '练', '凉', '两', '亮', '量', '林', '临', '灵', '刘', '流', '留', '六', '龙', '楼', '路', '录', '吕', '绿', '乱', '伦', '论', '罗', '洛', '老', '李', '刘', '吕', '廉', '澜', '李', '鲁'],
+        'M': ['马', '买', '卖', '满', '慢', '忙', '毛', '美', '门', '们', '米', '密', '民', '明', '命', '模', '磨', '墨', '末', '莫', '木', '目', '慕', '蒙', '芈', '孟'],
+        'N': ['那', '拿', '哪', '那', '奶', '南', '难', '男', '脑', '能', '你', '年', '念', '鸟', '您', '牛', '农', '弄', '女', '暖', '诺', '牛', '女', '哪'],
+        'O': ['欧'],
+        'P': ['排', '盘', '判', '旁', '胖', '跑', '配', '朋', '皮', '平', '凭', '瓶', '坡', '婆', '破', '普', '裴'],
+        'Q': ['七', '期', '其', '奇', '齐', '起', '气', '千', '前', '强', '桥', '乔', '巧', '切', '且', '青', '清', '情', '请', '秋', '丘', '求', '球', '区', '曲', '取', '去', '全', '缺', '确', '群', '青', '千', '秦', '戚'],
+        'R': ['然', '让', '热', '人', '认', '任', '日', '容', '如', '入', '软', '若'],
+        'S': ['三', '桑', '色', '沙', '杀', '山', '商', '上', '少', '绍', '社', '射', '设', '申', '深', '神', '生', '声', '圣', '胜', '师', '施', '十', '时', '实', '识', '史', '世', '事', '势', '视', '试', '收', '手', '首', '守', '书', '输', '熟', '术', '树', '双', '谁', '水', '税', '睡', '说', '司', '思', '死', '四', '送', '苏', '素', '速', '算', '虽', '随', '岁', '孙', '所', '沈', '孙', '司', '上', '少'],
+        'T': ['他', '她', '它', '台', '太', '泰', '谈', '特', '提', '题', '体', '天', '田', '甜', '填', '挑', '条', '跳', '贴', '铁', '听', '停', '通', '同', '统', '头', '图', '土', '团', '推', '托', '脱', '太', '天'],
+        'W': ['瓦', '外', '完', '玩', '晚', '万', '王', '网', '往', '望', '忘', '危', '威', '微', '为', '维', '伟', '卫', '未', '味', '位', '文', '闻', '问', '翁', '我', '无', '五', '武', '务', '物', '勿', '务', '吴', '王', '卫', '文'],
+        'X': ['西', '希', '息', '吸', '习', '喜', '细', '下', '夏', '仙', '先', '线', '现', '县', '限', '香', '乡', '相', '想', '向', '项', '象', '小', '晓', '肖', '笑', '效', '些', '写', '谢', '心', '新', '信', '星', '行', '形', '性', '姓', '修', '需', '许', '续', '选', '学', '雪', '血', '寻', '迅', '压', '牙', '亚', '烟', '严', '言', '颜', '眼', '验', '燕', '阳', '杨', '养', '样', '药', '要', '也', '野', '业', '夜', '一', '医', '依', '衣', '移', '已', '以', '易', '意', '义', '益', '议', '异', '音', '银', '因', '阴', '应', '英', '影', '硬', '用', '优', '由', '游', '友', '有', '又', '右', '于', '鱼', '娱', '雨', '语', '玉', '欲', '元', '员', '原', '远', '院', '月', '越', '云', '运', '孕', '西', '下', '仙', '先', '向', '小', '心', '星', '寻', '亚', '烟', '严', '言', '颜', '眼', '燕', '阳', '杨', '养', '样', '药', '要', '也', '野', '业', '夜', '一', '医', '依', '衣', '移', '已', '以', '易', '意', '义', '益', '议', '异', '音', '银', '因', '阴', '应', '英', '影', '硬', '用', '优', '由', '游', '友', '有', '又', '右', '于', '鱼', '娱', '雨', '语', '玉', '欲', '元', '员', '原', '远', '院', '月', '越', '云', '运', '孕'],
+        'Y': ['亚', '烟', '严', '言', '颜', '眼', '验', '燕', '阳', '杨', '养', '样', '药', '要', '也', '野', '业', '夜', '一', '医', '依', '衣', '移', '已', '以', '易', '意', '义', '益', '议', '异', '音', '银', '因', '阴', '应', '英', '影', '硬', '用', '优', '由', '游', '友', '有', '又', '右', '于', '鱼', '娱', '雨', '语', '玉', '欲', '元', '员', '原', '远', '院', '月', '越', '云', '运', '孕', '云', '英', '杨', '亚', '姚', '袁'],
+        'Z': ['杂', '在', '早', '造', '则', '泽', '增', '展', '张', '章', '长', '找', '赵', '照', '者', '这', '真', '正', '政', '之', '知', '只', '直', '值', '职', '植', '止', '指', '纸', '至', '治', '制', '智', '中', '终', '钟', '种', '重', '周', '州', '朱', '猪', '竹', '主', '住', '助', '注', '祝', '抓', '专', '转', '赚', '庄', '装', '追', '准', '桌', '资', '子', '紫', '字', '自', '宗', '总', '走', '租', '组', '最', '罪', '尊', '左', '坐', '座', '做', '作', '张', '赵', '周', '诸', '左', '朱']
+    };
+    
+    if (!heroName) return '#';
+    
+    // 检查复姓
+    if (heroName.length >= 2) {
+        const twoChar = heroName.substring(0, 2);
+        if (twoChar === '上官') return 'S';
+        if (twoChar === '夏侯') return 'X';
+        if (twoChar === '公孙') return 'G';
+        if (twoChar === '太史') return 'T';
+    }
+    
+    const firstChar = heroName[0];
+    
+    // 检查是否是拼音字母开头
+    if (/^[a-zA-Z]/.test(firstChar)) {
+        return firstChar.toUpperCase();
+    }
+    
+    // 根据中文首字匹配拼音
+    for (const [letter, chars] of Object.entries(pinyinMap)) {
+        if (chars.includes(firstChar)) {
+            return letter;
+        }
+    }
+    
+    return '#';
+}
+
+// 更新字母导航条
+function updateAlphabetNav() {
+    const nav = document.getElementById('alphabetNav');
+    
+    if (currentSort !== 'pinyin') {
+        nav.classList.remove('active');
+        return;
+    }
+    
+    nav.classList.add('active');
+    
+    // 收集所有英雄的首字母
+    const letters = new Set();
+    document.querySelectorAll('.hero-section').forEach(section => {
+        if (section.style.display !== 'none') {
+            const heroName = section.dataset.hero;
+            letters.add(getFirstLetter(heroName));
+        }
+    });
+    
+    // 生成导航链接
+    const sortedLetters = Array.from(letters).sort();
+    nav.innerHTML = sortedLetters.map(letter => {
+        return `<a href="#letter-${letter}" data-letter="${letter}">${letter}</a>`;
+    }).join('');
+    
+    // 添加点击事件
+    nav.querySelectorAll('a').forEach(a => {
+        a.addEventListener('click', function(e) {
+            e.preventDefault();
+            const letter = this.dataset.letter;
+            scrollToLetter(letter);
+        });
+    });
+}
+
+// 滚动到指定字母的英雄
+function scrollToLetter(letter) {
+    const sections = document.querySelectorAll('.hero-section');
+    for (const section of sections) {
+        if (section.style.display !== 'none') {
+            const heroName = section.dataset.hero;
+            if (getFirstLetter(heroName) === letter) {
+                section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                break;
+            }
+        }
+    }
+}
+
 async function toggleSkin(skinId, element) {
     const isOwned = element.classList.contains('owned');
     
@@ -312,10 +509,53 @@ function updateStats(stats) {
     document.getElementById('heroStats').innerHTML = heroStatsHtml;
 }
 
+// 排序切换
+document.querySelectorAll('.sort-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+        document.querySelectorAll('.sort-btn').forEach(b => b.classList.remove('active'));
+        this.classList.add('active');
+        
+        currentSort = this.dataset.sort;
+        reorderHeroes();
+        updateAlphabetNav();
+    });
+});
+
+// 重新排序英雄
+function reorderHeroes() {
+    const heroNames = currentSort === 'stats' ? heroNamesByStats : heroNamesByPinyin;
+    const container = document.querySelector('.col-lg-9');
+    const heroSections = Array.from(document.querySelectorAll('.hero-section'));
+    
+    // 按新顺序排列
+    heroNames.forEach(heroName => {
+        const section = document.getElementById(`hero-${heroName}`);
+        if (section) {
+            container.appendChild(section);
+        }
+    });
+    
+    // 更新英雄导航
+    updateHeroNav(heroNames);
+}
+
+// 更新英雄导航
+function updateHeroNav(heroNames) {
+    const navContainer = document.querySelector('.card-body .d-flex.flex-wrap');
+    navContainer.innerHTML = heroNames.map(heroName => {
+        return `<a href="#hero-${heroName}" class="btn btn-sm hero-nav-btn btn-outline-secondary">${heroName}</a>`;
+    }).join('');
+    
+    // 重新应用筛选
+    const query = document.getElementById('searchInput').value.toLowerCase();
+    applyFilters(query, currentRole);
+}
+
 // 搜索功能
 document.getElementById('searchInput').addEventListener('input', function(e) {
     const query = e.target.value.toLowerCase();
     applyFilters(query, currentRole);
+    updateAlphabetNav();
 });
 
 // 职业筛选
@@ -327,10 +567,9 @@ document.querySelectorAll('.role-filter .btn').forEach(btn => {
         currentRole = this.dataset.role;
         const query = document.getElementById('searchInput').value.toLowerCase();
         applyFilters(query, currentRole);
+        updateAlphabetNav();
     });
 });
-
-let currentRole = '全部';
 
 function applyFilters(query, selectedRole) {
     document.querySelectorAll('.hero-section').forEach(section => {
@@ -365,6 +604,11 @@ document.querySelectorAll('.skin-card').forEach(card => {
         const skinId = parseInt(this.dataset.skinId);
         toggleSkin(skinId, this);
     });
+});
+
+// 初始化
+document.addEventListener('DOMContentLoaded', function() {
+    updateAlphabetNav();
 });
 </script>
 {% endblock %}

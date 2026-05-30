@@ -12,6 +12,19 @@ db = SQLAlchemy()
 
 # 英雄数据文件路径
 HEROES_JSON_PATH = os.path.join(os.path.dirname(__file__), '..', 'data', 'heroes.json')
+# 皮肤默认排序文件路径
+SKIN_SORT_JSON_PATH = os.path.join(os.path.dirname(__file__), '..', 'data', 'skin_sort_order.json')
+
+
+def load_default_skin_sort_order():
+    """从JSON文件加载默认皮肤排序顺序（返回拼音列表）"""
+    try:
+        with open(SKIN_SORT_JSON_PATH, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+        return data.get('hero_order', [])
+    except Exception as e:
+        print(f"加载默认皮肤排序失败: {e}")
+        return []
 
 
 def load_heroes_from_json():
